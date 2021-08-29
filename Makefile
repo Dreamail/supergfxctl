@@ -1,4 +1,4 @@
-VERSION := $(shell grep -Pm1 'version = "(\d.\d.\d)"' daemon/Cargo.toml | cut -d'"' -f2)
+VERSION := $(shell grep -Pm1 'version = "(\d.\d.\d)"' Cargo.toml | cut -d'"' -f2)
 
 INSTALL = install
 INSTALL_PROGRAM = ${INSTALL} -D -m 0755
@@ -69,7 +69,7 @@ vendor:
 build:
 ifeq ($(VENDORED),1)
 	@echo "version = $(VERSION)"
-	tar pxf vendor_asusctl_$(VERSION).tar.xz
+	tar pxf vendor-$(VERSION).tar.xz
 endif
 	cargo build --features "daemon cli" $(ARGS)
 	strip -s ./target/release/$(BIN_SD)
