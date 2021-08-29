@@ -15,7 +15,7 @@ BIN_SC := supergfxctl
 SERVICE := supergfxd.service
 DBUSCFG := org.supergfxctl.Daemon.conf
 X11CFG := 90-nvidia-screen-G05.conf
-PMRULES := 90-asusd-nvidia-pm.rules
+PMRULES := 90-supergfxd-nvidia-pm.rules
 
 SRC := Cargo.toml Cargo.lock Makefile $(shell find -type f -wholename '**/src/*.rs')
 
