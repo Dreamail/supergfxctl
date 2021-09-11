@@ -13,6 +13,7 @@ libdir = $(exec_prefix)/lib
 BIN_SD := supergfxd
 BIN_SC := supergfxctl
 SERVICE := supergfxd.service
+PRESET := supergfxd.preset
 DBUSCFG := org.supergfxctl.Daemon.conf
 X11CFG := 90-nvidia-screen-G05.conf
 PMRULES := 90-supergfxd-nvidia-pm.rules
@@ -42,6 +43,7 @@ install:
 	$(INSTALL_PROGRAM) "./target/release/$(BIN_SD)" "$(DESTDIR)$(bindir)/$(BIN_SD)"
 	$(INSTALL_PROGRAM) "./target/release/$(BIN_SC)" "$(DESTDIR)$(bindir)/$(BIN_SC)"
 	$(INSTALL_DATA) "./data/$(SERVICE)" "$(DESTDIR)$(libdir)/systemd/system/$(SERVICE)"
+	$(INSTALL_DATA) "./data/$(PRESET)" "$(DESTDIR)$(libdir)/systemd/system-preset/$(PRESET)"
 	$(INSTALL_DATA) "./data/$(DBUSCFG)" "$(DESTDIR)$(datarootdir)/dbus-1/system.d/$(DBUSCFG)"
 	$(INSTALL_DATA) "./data/$(X11CFG)" "$(DESTDIR)$(datarootdir)/X11/xorg.conf.d/$(X11CFG)"
 	$(INSTALL_DATA) "./data/$(PMRULES)" "$(DESTDIR)$(libdir)/udev/rules.d/$(PMRULES)"
@@ -49,7 +51,8 @@ install:
 uninstall:
 	rm -f "$(DESTDIR)$(bindir)/$(BIN_SC)"
 	rm -f "$(DESTDIR)$(bindir)/$(BIN_SD)"
-	rm -f "$(DESTDIR)$(libdir)/systemd/system/$(BIN_SD).service"
+	rm -f "$(DESTDIR)$(libdir)/systemd/system/$(SERVICE)"
+	rm -f "$(DESTDIR)$(libdir)/systemd/system-preset/$(PRESET)"
 	rm -f "$(DESTDIR)$(datarootdir)/dbus-1/system.d/org.supergfxctl.Daemon.conf"
 	rm -f "$(DESTDIR)$(datarootdir)/X11/xorg.conf.d/$(X11CFG)"
 	rm -f "$(DESTDIR)$(libdir)/udev/rules.d/$(PMRULES)"
