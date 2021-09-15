@@ -29,7 +29,6 @@ required-features = ["daemon"]
 name = "supergfxctl"
 path = "src/cli.rs"
 required-features = ["cli"]
-default-features = ["cli"]
 
 [dependencies]
 serde = "^1.0"
