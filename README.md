@@ -9,6 +9,12 @@
 
 Switching to/from Hybrid and Nvidia modes requires a logout only (no reboot). Switching between integrated/compute/vfio does not require a logout and is instant.
 
+### Build + Install
+
+`make && sudo make install`
+
+You may need extra dev packages installed for building.
+
 #### Required actions in distro
 
 **Rebootless note:** You must edit `/etc/default/grub` to remove `nvidia-drm.modeset=1`
