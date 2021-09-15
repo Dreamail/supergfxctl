@@ -32,7 +32,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match CliStart::parse_args_default(&args) {
         Ok(command) => {
-            do_gfx(command)?;
+            do_gfx(command).map_err(|err|{
+                println!("Graphics mode change error.");
+                if !check_systemd_unit_enabled("supergfxd") {
+                    println!("\x1b[0;31msupergfxd is not enabled, enable it with `systemctl enable supergfxd\x1b[0m");
+                } else if !check_systemd_unit_active("supergfxd") {
+                    println!("\x1b[0;31msupergfxd is not running, start it with `systemctl start supergfxd\x1b[0m");
+                } else {
+                    println!("You may be in an invalid state or supergfxd may not be running");
+                    println!("Please check `journalctl -b -u supergfxd`, and `systemctl status supergfxd`");
+                }
+                err
+            })?;
         }
         Err(err) => {
             eprintln!("source {}", err);
@@ -63,11 +74,7 @@ fn do_gfx(command: CliStart) -> Result<(), Box<dyn std::error::Error>> {
         println!("If anything fails check `journalctl -b -u supergfxd`\n");
         println!("Note that nvidia-drm.modeset=0 is required in kernel cmdline to enable the nvidia drivers to be unloaded on demand`\n");
 
-        proxy.gfx_write_mode(&mode).map_err(|err|{
-            println!("Graphics mode change error. You may be in an invalid state.");
-            println!("Check mode with `-g` and switch to opposite\nmode to correct it, e.g: if integrated, switch to hybrid, or if nvidia, switch to integrated.\n");
-            err
-        })?;
+        proxy.gfx_write_mode(&mode)?;
 
         loop {
             proxy.next_signal()?;
@@ -105,4 +112,28 @@ fn do_gfx(command: CliStart) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+fn check_systemd_unit_active(name: &str) -> bool {
+    if let Ok(out) = Command::new("systemctl")
+        .arg("is-active")
+        .arg(name)
+        .output()
+    {
+        let buf = String::from_utf8_lossy(&out.stdout);
+        return !buf.contains("inactive") && !buf.contains("failed");
+    }
+    false
+}
+
+fn check_systemd_unit_enabled(name: &str) -> bool {
+    if let Ok(out) = Command::new("systemctl")
+        .arg("is-enabled")
+        .arg(name)
+        .output()
+    {
+        let buf = String::from_utf8_lossy(&out.stdout);
+        return buf.contains("enabled");
+    }
+    false
 }
