@@ -1,6 +1,6 @@
 //! Basic CLI tool to control the `supergfxd` daemon
 
-use std::{env::args, sync::mpsc::channel};
+use std::{process::Command, env::args, sync::mpsc::channel};
 use supergfxctl::{
     gfx_vendors::{GfxRequiredUserAction, GfxVendors},
     special::{get_asus_gsync_gfx_mode, has_asus_gsync_gfx_mode},
