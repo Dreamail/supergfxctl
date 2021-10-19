@@ -11,7 +11,7 @@ There is no guide or tutorial for new Linux users who want to use this tool. It 
 
 **Install requirements**
 
-* Debian/Ubuntu: `sudo apt update && install curl git build-essential`
+* Debian/Ubuntu: `sudo apt update && sudo apt install curl git build-essential`
 * Fedora/RHEL: `sudo dnf upgrade && sudo dnf install curl git @development_tools`
 * Arch/Manjaro: `sudo pacman -Syu && sudo pacman -S curl git base-devel`
 
