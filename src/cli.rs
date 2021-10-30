@@ -16,7 +16,7 @@ struct CliStart {
     help: bool,
     #[options(
         meta = "",
-        help = "Set graphics mode: <nvidia, hybrid, compute, integrated>"
+        help = "Set graphics mode: <nvidia, hybrid, compute, integrated, egpu>"
     )]
     mode: Option<GfxVendors>,
     #[options(help = "Get the current mode")]
