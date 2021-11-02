@@ -7,13 +7,50 @@
 - `nvidia`, uses the Nvidia gpu only
 - `vfio`, binds the Nvidia gpu to vfio for VM pass-through
 
-Switching to/from Hybrid and Nvidia modes requires a logout only (no reboot). Switching between integrated/compute/vfio does not require a logout and is instant.
+There is no guide or tutorial for new Linux users who want to use this tool. It would be better if this gets added to the [README.md](https://gitlab.com/asus-linux/supergfxctl/-/blob/main/README.md) and/or the [Wiki](https://gitlab.com/asus-linux/supergfxctl/-/wikis/home) of this project.
 
-### Build + Install
+**Install requirements**
 
-`make && sudo make install`
+* Debian/Ubuntu: `sudo apt update && sudo apt install curl git build-essential`
+* Fedora/RHEL: `sudo dnf upgrade && sudo dnf install curl git @development_tools`
+* Arch/Manjaro: `sudo pacman -Syu && sudo pacman -S curl git base-devel`
 
-You may need extra dev packages installed for building.
+**Install Rust**
+
+* `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs`
+
+**Activate Rust environment**
+
+* `source ~/.bash_profile`
+* `source ~/.profile`
+* `source ~/.cargo/env`
+
+**Clone supergfxctl repository**
+
+* `git clone https://gitlab.com/asus-linux/supergfxctl.git`
+
+**Install supergfxctl**
+
+* `cd supergfxctl`
+* `make && sudo make install`
+
+**Enable service**
+
+* `sudo systemctl enable supergfxd.service`
+* `sudo systemctl start supergfxd.service`
+
+**Switch GPU modes**
+
+* Switching to/from Hybrid and Nvidia modes requires a logout only. (no reboot)
+* Switching between integrated/compute/vfio is instant. (no logout or reboot)
+
+| GPU Modes  | Command                            |
+|------------|------------------------------------|
+| Integrated | sudo supergfxctl --mode integrated |
+| Nvidia     | sudo supergfxctl --mode nvidia     |
+| Hybrid     | sudo supergfxctl --mode hybrid     |
+| Compute    | sudo supergfxctl --mode compute    |
+| VFIO       | sudo supergfxctl --mode vfio       |
 
 #### Required actions in distro
 
