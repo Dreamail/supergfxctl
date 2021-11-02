@@ -4,7 +4,7 @@ use logind_zbus::{
     types::{SessionClass, SessionInfo, SessionState, SessionType},
     ManagerProxy, SessionProxy,
 };
-use std::{io::Write, ops::Add, path::Path, time::Instant};
+use std::{fs::OpenOptions, io::Write, ops::Add, path::Path, time::Instant};
 use std::{process::Command, thread::sleep, time::Duration};
 use std::{str::FromStr, sync::mpsc};
 use std::{sync::Arc, sync::Mutex};
@@ -234,7 +234,7 @@ impl CtrlGraphics {
     fn write_modprobe_conf(vendor: GfxVendors, devices: &[GraphicsDevice]) -> Result<(), GfxError> {
         info!("GFX: Writing {}", MODPROBE_PATH);
         let content = match vendor {
-            GfxVendors::Nvidia | GfxVendors::Hybrid => {
+            GfxVendors::Nvidia | GfxVendors::Hybrid | GfxVendors::Egpu => {
                 let mut base = MODPROBE_BASE.to_vec();
                 base.append(&mut MODPROBE_DRM_MODESET.to_vec());
                 base
@@ -453,6 +453,9 @@ impl CtrlGraphics {
                         Self::do_driver_action(driver, "rmmod")?;
                     }
                 }
+                if Self::egpu_exists() {
+                    Self::egpu_set_status(false, bus)?;
+                }
                 for driver in NVIDIA_DRIVERS.iter() {
                     Self::do_driver_action(driver, "modprobe")?;
                 }
@@ -480,8 +483,57 @@ impl CtrlGraphics {
                     Self::do_driver_action(driver, "rmmod")?;
                 }
                 Self::unbind_remove_nvidia(devices)?;
+                // This can only be done *after* the drivers are removed or a
+                // hardlock will be caused
+                if Self::egpu_exists() {
+                    Self::egpu_set_status(false, bus)?;
+                }
+            }
+            GfxVendors::Egpu => {
+                if vfio_enable {
+                    for driver in VFIO_DRIVERS.iter() {
+                        Self::do_driver_action(driver, "rmmod")?;
+                    }
+                }
+
+                Self::egpu_set_status(true, bus)?;
+
+                for driver in NVIDIA_DRIVERS.iter() {
+                    Self::do_driver_action(driver, "modprobe")?;
+                }
             }
         }
+        Ok(())
+    }
+
+    fn egpu_exists() -> bool {
+        if Path::new(EGPU_ENABLE_PATH).exists() {
+            return true;
+        }
+        false
+    }
+
+    fn egpu_set_status(status: bool, bus: &PciBus,) -> Result<(), GfxError> {
+        // toggling from egpu must have the nvidia driver unloaded
+        for driver in NVIDIA_DRIVERS.iter() {
+            Self::do_driver_action(driver, "rmmod")?;
+        }
+        // Need to set, scan, set to ensure mode is correctly set
+        Self::toggle_egpu_path(status)?;
+        bus.rescan()?;
+        Self::toggle_egpu_path(status)?;
+        Ok(())
+    }
+
+    fn toggle_egpu_path(status: bool) -> Result<(), GfxError> {
+        let path = Path::new(EGPU_ENABLE_PATH);
+        let mut file = OpenOptions::new()
+            .write(true)
+            .open(path)
+            .map_err(|err| GfxError::Path(EGPU_ENABLE_PATH.to_string(), err))?;
+        let status = if status { 1 } else { 0 };
+        file.write_all(status.to_string().as_bytes())
+            .map_err(|err| GfxError::Write(EGPU_ENABLE_PATH.to_string(), err))?;
         Ok(())
     }
 
@@ -647,6 +699,11 @@ impl CtrlGraphics {
 
         if !vfio_enable && matches!(vendor, GfxVendors::Vfio) {
             return Err(GfxError::VfioDisabled);
+        }
+
+        if matches!(vendor, GfxVendors::Egpu) && !Self::egpu_exists() {
+            error!("Egpu mode requested when either the laptop doesn't support it or the kernel is not recent enough");
+            return Err(GfxError::NotSupported(EGPU_ENABLE_PATH.to_string()));
         }
 
         // Must always cancel any thread running

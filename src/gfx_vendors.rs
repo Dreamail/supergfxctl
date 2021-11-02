@@ -42,6 +42,7 @@ pub enum GfxVendors {
     Integrated,
     Compute,
     Vfio,
+    Egpu,
     Hybrid,
 }
 
@@ -49,17 +50,13 @@ impl FromStr for GfxVendors {
     type Err = GfxError;
 
     fn from_str(s: &str) -> Result<Self, GfxError> {
-        match s.to_lowercase().as_str() {
+        match s.to_lowercase().trim() {
             "nvidia" => Ok(GfxVendors::Nvidia),
             "hybrid" => Ok(GfxVendors::Hybrid),
             "compute" => Ok(GfxVendors::Compute),
             "vfio" => Ok(GfxVendors::Vfio),
+            "epgu" => Ok(GfxVendors::Egpu),
             "integrated" => Ok(GfxVendors::Integrated),
-            "nvidia\n" => Ok(GfxVendors::Nvidia),
-            "hybrid\n" => Ok(GfxVendors::Hybrid),
-            "compute\n" => Ok(GfxVendors::Compute),
-            "vfio\n" => Ok(GfxVendors::Vfio),
-            "integrated\n" => Ok(GfxVendors::Integrated),
             _ => Err(GfxError::ParseVendor),
         }
     }
@@ -72,6 +69,7 @@ impl From<&GfxVendors> for &str {
             GfxVendors::Hybrid => "hybrid",
             GfxVendors::Compute => "compute",
             GfxVendors::Vfio => "vfio",
+            GfxVendors::Egpu => "egpu",
             GfxVendors::Integrated => "integrated",
         }
     }

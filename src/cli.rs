@@ -1,6 +1,6 @@
 //! Basic CLI tool to control the `supergfxd` daemon
 
-use std::{process::Command, env::args, sync::mpsc::channel};
+use std::{env::args, process::Command, sync::mpsc::channel};
 use supergfxctl::{
     gfx_vendors::{GfxRequiredUserAction, GfxVendors},
     special::{get_asus_gsync_gfx_mode, has_asus_gsync_gfx_mode},
@@ -16,7 +16,7 @@ struct CliStart {
     help: bool,
     #[options(
         meta = "",
-        help = "Set graphics mode: <nvidia, hybrid, compute, integrated>"
+        help = "Set graphics mode: <nvidia, hybrid, compute, integrated, egpu>"
     )]
     mode: Option<GfxVendors>,
     #[options(help = "Get the current mode")]
@@ -42,6 +42,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("You may be in an invalid state or supergfxd may not be running");
                     println!("Please check `journalctl -b -u supergfxd`, and `systemctl status supergfxd`");
                 }
+                println!();
+                print_laptop_info();
                 err
             })?;
         }
@@ -136,4 +138,13 @@ fn check_systemd_unit_enabled(name: &str) -> bool {
         return buf.contains("enabled");
     }
     false
+}
+
+fn print_laptop_info() {
+    let dmi = sysfs_class::DmiId::default();
+    let board_name = dmi.board_name().expect("Could not get board_name");
+    let prod_family = dmi.product_family().expect("Could not get product_family");
+
+    println!("Product family: {}", prod_family.trim());
+    println!("Board name: {}", board_name.trim());
 }

@@ -75,3 +75,5 @@ static PRIMARY_GPU_NVIDIA: &[u8] = br#"
 
 static PRIMARY_GPU_END: &[u8] = br#"
 EndSection"#;
+
+static EGPU_ENABLE_PATH: &str = "/sys/devices/platform/asus-nb-wmi/dgpu_disable";

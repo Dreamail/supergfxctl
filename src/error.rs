@@ -15,6 +15,7 @@ pub enum GfxError {
     Path(String, std::io::Error),
     Read(String, std::io::Error),
     Write(String, std::io::Error),
+    NotSupported(String),
     Io(std::io::Error),
     Zbus(zbus::Error),
 }
@@ -47,6 +48,7 @@ impl fmt::Display for GfxError {
             GfxError::Path(path, error) => write!(f, "Path {}: {}", path, error),
             GfxError::Read(path, error) => write!(f, "Read {}: {}", path, error),
             GfxError::Write(path, error) => write!(f, "Write {}: {}", path, error),
+            GfxError::NotSupported(path) => write!(f, "Write {}", path),
             GfxError::Io(detail) => write!(f, "std::io error: {}", detail),
             GfxError::Zbus(detail) => write!(f, "Zbus error: {}", detail),
         }
