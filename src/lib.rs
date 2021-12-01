@@ -28,6 +28,7 @@ pub const DBUS_IFACE_PATH: &str = "/org/supergfxctl/Gfx";
 const NVIDIA_DRIVERS: [&str; 4] = ["nvidia_drm", "nvidia_modeset", "nvidia_uvm", "nvidia"];
 
 const VFIO_DRIVERS: [&str; 5] = [
+    "vfio_pci_core",
     "vfio-pci",
     "vfio_iommu_type1",
     "vfio_virqfd",
