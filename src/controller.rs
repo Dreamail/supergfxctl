@@ -4,10 +4,14 @@ use logind_zbus::{
     types::{SessionClass, SessionInfo, SessionState, SessionType},
     ManagerProxy, SessionProxy,
 };
+use std::str::FromStr;
 use std::{fs::OpenOptions, io::Write, ops::Add, path::Path, time::Instant};
 use std::{process::Command, thread::sleep, time::Duration};
-use std::{str::FromStr, sync::mpsc};
-use std::{sync::Arc, sync::Mutex};
+use std::{
+    sync::atomic::{AtomicBool, Ordering},
+    sync::Arc,
+    sync::Mutex,
+};
 use sysfs_class::RuntimePM;
 use sysfs_class::{PciDevice, SysClass};
 
@@ -32,7 +36,7 @@ pub struct CtrlGraphics {
     #[allow(dead_code)]
     other: Vec<GraphicsDevice>,
     config: Arc<Mutex<GfxConfig>>,
-    thread_kill: Arc<Mutex<Option<mpsc::Sender<bool>>>>,
+    thread_exit: Arc<AtomicBool>,
 }
 
 impl CtrlGraphics {
@@ -100,7 +104,7 @@ impl CtrlGraphics {
             nvidia,
             other,
             config,
-            thread_kill: Arc::new(Mutex::new(None)),
+            thread_exit: Arc::new(AtomicBool::new(false)),
         })
     }
 
@@ -513,7 +517,7 @@ impl CtrlGraphics {
         false
     }
 
-    fn egpu_set_status(status: bool, bus: &PciBus,) -> Result<(), GfxError> {
+    fn egpu_set_status(status: bool, bus: &PciBus) -> Result<(), GfxError> {
         // toggling from egpu must have the nvidia driver unloaded
         for driver in NVIDIA_DRIVERS.iter() {
             Self::do_driver_action(driver, "rmmod")?;
@@ -560,11 +564,11 @@ impl CtrlGraphics {
     }
 
     /// Spools until all user sessions are ended then switches to requested mode
-    fn create_mode_change_thread(
+    fn mode_change_loop(
         vendor: GfxVendors,
         devices: Vec<GraphicsDevice>,
         bus: PciBus,
-        thread_stop: mpsc::Receiver<bool>,
+        thread_stop: Arc<AtomicBool>,
         config: Arc<Mutex<GfxConfig>>,
     ) -> Result<String, GfxError> {
         info!("GFX: display-manager thread started");
@@ -577,6 +581,10 @@ impl CtrlGraphics {
         let mut sessions = manager.list_sessions()?;
 
         loop {
+            if thread_stop.load(Ordering::SeqCst) {
+                info!("Thread forced to exit");
+                return Ok("Exited".to_string());
+            }
             let tmp = manager.list_sessions()?;
             if !tmp.iter().eq(&sessions) {
                 info!("GFX thread: Sessions list changed");
@@ -587,11 +595,6 @@ impl CtrlGraphics {
                 break;
             }
 
-            if let Ok(stop) = thread_stop.try_recv() {
-                if stop {
-                    return Ok("Graphics mode change was cancelled".into());
-                }
-            }
             // exit if 3 minutes pass
             if Instant::now().duration_since(start_time).as_secs() > 180 {
                 warn!("{}", THREAD_TIMEOUT_MSG);
@@ -638,42 +641,26 @@ impl CtrlGraphics {
         Ok(format!("Graphics mode changed to {} successfully", v))
     }
 
-    /// Before starting a new thread the old one *must* be cancelled
-    fn cancel_mode_change_thread(&self) {
-        if let Ok(lock) = self.thread_kill.lock() {
-            if let Some(tx) = lock.as_ref() {
-                // Cancel the running thread
-                info!("GFX: Cancelling previous thread");
-                tx.send(true)
-                    .map_err(|err| {
-                        warn!("GFX thread: {}", err);
-                    })
-                    .ok();
-            }
-        }
-    }
-
     /// The thread is used only in cases where a logout is required
     fn setup_mode_change_thread(&mut self, vendor: GfxVendors) {
+        // First, stop all threads
+        self.thread_exit.store(true, Ordering::Release);
+        // Give threads a chance to read
+        std::thread::sleep(Duration::from_secs(1));
+        // then reset
+        self.thread_exit.store(false, Ordering::Release);
+
         let config = self.config.clone();
         let devices = self.nvidia.clone();
         let bus = self.bus.clone();
-        let (tx, rx) = mpsc::channel();
-        if let Ok(mut lock) = self.thread_kill.lock() {
-            *lock = Some(tx);
-        }
-        let thread_kill = self.thread_kill.clone();
+        let rx = self.thread_exit.clone();
 
         std::thread::spawn(move || {
-            Self::create_mode_change_thread(vendor, devices, bus, rx, config)
+            Self::mode_change_loop(vendor, devices, bus, rx, config)
                 .map_err(|err| {
                     error!("GFX: {}", err);
                 })
                 .ok();
-            // clear the tx/rx when done
-            if let Ok(mut lock) = thread_kill.try_lock() {
-                *lock = None;
-            }
         });
     }
 
@@ -706,8 +693,6 @@ impl CtrlGraphics {
             return Err(GfxError::NotSupported(EGPU_ENABLE_PATH.to_string()));
         }
 
-        // Must always cancel any thread running
-        self.cancel_mode_change_thread();
         // determine which method we need here
         let action_required = self.is_logout_required(vendor);
 
