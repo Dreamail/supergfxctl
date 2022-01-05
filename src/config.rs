@@ -3,17 +3,17 @@ use serde_derive::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 
-use crate::gfx_vendors::GfxVendors;
+use crate::gfx_vendors::GfxMode;
 
 #[derive(Deserialize, Serialize)]
 pub struct GfxConfig {
     #[serde(skip)]
     config_path: String,
     /// The current mode set, also applies on boot
-    pub gfx_mode: GfxVendors,
+    pub gfx_mode: GfxMode,
     /// Only for informational purposes
     #[serde(skip)]
-    pub gfx_tmp_mode: Option<GfxVendors>,
+    pub gfx_tmp_mode: Option<GfxMode>,
     /// Set if graphics management is enabled
     pub gfx_managed: bool,
     /// Set if vfio option is enabled. This requires the vfio drivers to be built as modules
@@ -24,7 +24,7 @@ impl GfxConfig {
     fn new(config_path: String) -> Self {
         Self {
             config_path,
-            gfx_mode: GfxVendors::Hybrid,
+            gfx_mode: GfxMode::Hybrid,
             gfx_tmp_mode: None,
             gfx_managed: true,
             gfx_vfio_enable: false,

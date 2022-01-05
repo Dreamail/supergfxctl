@@ -36,47 +36,77 @@ impl From<&GfxPower> for &str {
     }
 }
 
-#[derive(Debug, Type, PartialEq, Copy, Clone, Deserialize, Serialize)]
-pub enum GfxVendors {
+#[derive(Debug, Type, PartialEq, Copy, Clone)]
+pub enum GfxVendor {
     Nvidia,
+    Amd,
+    Intel,
+    Unknown,
+}
+
+impl From<u16> for GfxVendor {
+    fn from(vendor: u16) -> Self {
+        match vendor {
+            0x1002 => GfxVendor::Amd,
+            0x10DE => GfxVendor::Nvidia,
+            0x8086 => GfxVendor::Intel,
+            _ => GfxVendor::Unknown,
+        }
+    }
+}
+
+impl From<&GfxVendor> for &str {
+    fn from(vendor: &GfxVendor) -> Self {
+        match vendor {
+            GfxVendor::Nvidia => "Nvidia",
+            GfxVendor::Amd => "AMD",
+            GfxVendor::Intel => "Intel",
+            GfxVendor::Unknown => "Unknown",
+        }
+    }
+}
+
+#[derive(Debug, Type, PartialEq, Copy, Clone, Deserialize, Serialize)]
+pub enum GfxMode {
+    Hybrid,
+    Dedicated,
     Integrated,
     Compute,
     Vfio,
     Egpu,
-    Hybrid,
 }
 
-impl FromStr for GfxVendors {
+impl FromStr for GfxMode {
     type Err = GfxError;
 
     fn from_str(s: &str) -> Result<Self, GfxError> {
         match s.to_lowercase().trim() {
-            "nvidia" => Ok(GfxVendors::Nvidia),
-            "hybrid" => Ok(GfxVendors::Hybrid),
-            "compute" => Ok(GfxVendors::Compute),
-            "vfio" => Ok(GfxVendors::Vfio),
-            "epgu" => Ok(GfxVendors::Egpu),
-            "integrated" => Ok(GfxVendors::Integrated),
+            "hybrid" => Ok(GfxMode::Hybrid),
+            "dedicated" => Ok(GfxMode::Dedicated),
+            "integrated" => Ok(GfxMode::Integrated),
+            "compute" => Ok(GfxMode::Compute),
+            "vfio" => Ok(GfxMode::Vfio),
+            "epgu" => Ok(GfxMode::Egpu),
             _ => Err(GfxError::ParseVendor),
         }
     }
 }
 
-impl From<&GfxVendors> for &str {
-    fn from(gfx: &GfxVendors) -> &'static str {
+impl From<&GfxMode> for &str {
+    fn from(gfx: &GfxMode) -> &'static str {
         match gfx {
-            GfxVendors::Nvidia => "nvidia",
-            GfxVendors::Hybrid => "hybrid",
-            GfxVendors::Compute => "compute",
-            GfxVendors::Vfio => "vfio",
-            GfxVendors::Egpu => "egpu",
-            GfxVendors::Integrated => "integrated",
+            GfxMode::Hybrid => "hybrid",
+            GfxMode::Dedicated => "dedicated",
+            GfxMode::Integrated => "integrated",
+            GfxMode::Compute => "compute",
+            GfxMode::Vfio => "vfio",
+            GfxMode::Egpu => "egpu",
         }
     }
 }
 
-impl From<GfxVendors> for &str {
-    fn from(gfx: GfxVendors) -> &'static str {
+impl From<GfxMode> for &str {
+    fn from(gfx: GfxMode) -> &'static str {
         (&gfx).into()
     }
 }

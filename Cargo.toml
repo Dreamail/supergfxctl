@@ -41,8 +41,6 @@ zvariant = "^2.8"
 zvariant_derive = "^2.8"
 logind-zbus = "^0.7.1"
 
-sysfs-class = "^0.1.2"
-
 env_logger = { version = "^0.8", optional = true }
 gumdrop = { version = "^0.8", optional = true }
 

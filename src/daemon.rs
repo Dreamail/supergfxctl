@@ -10,7 +10,7 @@ use supergfxctl::{
     config::GfxConfig,
     controller::CtrlGraphics,
     error::GfxError,
-    gfx_vendors::GfxVendors,
+    gfx_vendors::GfxMode,
     special::{get_asus_gsync_gfx_mode, has_asus_gsync_gfx_mode},
     CONFIG_PATH, DBUS_DEST_NAME,
 };
@@ -91,13 +91,11 @@ fn do_asus_laptop_checks(
             if ded == 1 {
                 warn!("Dedicated GFX toggle is on but driver mode is not nvidia \nSetting to nvidia driver mode");
                 let devices = ctrl.devices();
-                let bus = ctrl.bus();
-                CtrlGraphics::do_mode_setup_tasks(GfxVendors::Nvidia, false, &devices, &bus)?;
+                CtrlGraphics::do_mode_setup_tasks(GfxMode::Dedicated, false, &devices)?;
             } else if ded == 0 {
                 info!("Dedicated GFX toggle is off");
                 let devices = ctrl.devices();
-                let bus = ctrl.bus();
-                CtrlGraphics::do_mode_setup_tasks(config.gfx_mode, false, &devices, &bus)?;
+                CtrlGraphics::do_mode_setup_tasks(config.gfx_mode, false, &devices)?;
             }
         }
     }
