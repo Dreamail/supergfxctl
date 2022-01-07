@@ -17,8 +17,9 @@ const PM_CONTROL_PATH: &str = "power/control";
 const PM_STATUS_PATH: &str = "power/runtime_status";
 
 /// Will rescan the device tree, which adds all removed devices back
-pub fn rescan_pci_bus() -> io::Result<()> {
-    write(PathBuf::from(PCI_BUS_PATH).join("rescan"), "1")
+pub fn rescan_pci_bus() -> Result<(), GfxError> {
+    let path = PathBuf::from(PCI_BUS_PATH).join("rescan");
+    write(&path, "1").map_err(|e| GfxError::from_io(e, path))
 }
 
 #[derive(Clone)]
@@ -37,21 +38,23 @@ impl PciDriver {
     }
 
     /// Write a file underneath the sys object
-    fn write_file<P: AsRef<Path>, S: AsRef<[u8]>>(&self, name: P, data: S) -> io::Result<()> {
-        {
-            let path = self.path.join(name.as_ref());
-            let mut file = fs::OpenOptions::new().write(true).open(path)?;
-            file.write_all(data.as_ref())?
-        }
+    fn write_file<P: AsRef<Path>, S: AsRef<[u8]>>(&self, name: P, data: S) -> Result<(), GfxError> {
+        let path = self.path.join(name.as_ref());
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .open(&path)
+            .map_err(|e| GfxError::from_io(e, path.clone()))?;
+        file.write_all(data.as_ref())
+            .map_err(|e| GfxError::from_io(e, path))?;
 
         Ok(())
     }
 
-    pub unsafe fn bind(&self, device: &PciDevice) -> io::Result<()> {
+    pub unsafe fn bind(&self, device: &PciDevice) -> Result<(), GfxError> {
         self.write_file("bind", device.id())
     }
 
-    pub unsafe fn unbind(&self, device: &PciDevice) -> io::Result<()> {
+    pub unsafe fn unbind(&self, device: &PciDevice) -> Result<(), GfxError> {
         self.write_file("unbind", device.id())
     }
 }
@@ -59,13 +62,13 @@ impl PciDriver {
 macro_rules! pci_devices {
     ($( fn $file:tt -> $out:tt; )*) => {
         $(
-            pub fn $file(&self) -> io::Result<$out> {
+            pub fn $file(&self) -> Result<$out, GfxError> {
                 let v = self.read_file(stringify!($file))?;
                 $out::from_str_radix(v[2..].trim(), 16).map_err(|err| {
                     io::Error::new(
                         io::ErrorKind::InvalidData,
-                        format!("{}", err)
-                    )
+                        format!("{}/{}: {}", self.path().display(), stringify!($file), err)
+                    ).into()
                 })
             }
         )*
@@ -79,11 +82,11 @@ pub struct PciDevice {
 
 impl PciDevice {
     /// Retrieve all of the object instances of a sys class
-    pub fn all() -> io::Result<Vec<Self>> {
+    pub fn all() -> Result<Vec<Self>, GfxError> {
         let mut ret = Vec::new();
-
-        for entry_res in fs::read_dir(PathBuf::from(PCI_BUS_PATH).join("devices"))? {
-            let entry = entry_res?;
+        let path = PathBuf::from(PCI_BUS_PATH).join("devices");
+        for entry_res in fs::read_dir(&path).map_err(|e| GfxError::from_io(e, path.clone()))? {
+            let entry = entry_res.map_err(|e| GfxError::from_io(e, path.clone()))?;
             if entry.path().is_dir() {
                 ret.push(Self { path: entry.path() });
             }
@@ -105,26 +108,33 @@ impl PciDevice {
         &self.path
     }
 
-    /// Read a file underneath the sys object
-    fn read_file<P: AsRef<Path>>(&self, name: P) -> io::Result<String> {
-        let mut data = String::new();
+    pub fn owned_path(&self) -> PathBuf {
+        self.path.clone()
+    }
 
-        {
-            let path = self.path().join(name.as_ref());
-            let mut file = fs::OpenOptions::new().read(true).open(path)?;
-            file.read_to_string(&mut data)?;
-        }
+    /// Read a file underneath the sys object
+    fn read_file<P: AsRef<Path>>(&self, name: P) -> Result<String, GfxError> {
+        let mut data = String::new();
+        let path = self.path().join(name.as_ref());
+        let mut file = fs::OpenOptions::new()
+            .read(true)
+            .open(&path)
+            .map_err(|e| GfxError::from_io(e, path.clone()))?;
+        file.read_to_string(&mut data)
+            .map_err(|e| GfxError::from_io(e, path))?;
 
         Ok(data)
     }
 
     /// Write a file underneath the sys object
-    fn write_file<P: AsRef<Path>, S: AsRef<[u8]>>(&self, name: P, data: S) -> io::Result<()> {
-        {
-            let path = self.path().join(name.as_ref());
-            let mut file = fs::OpenOptions::new().write(true).open(path)?;
-            file.write_all(data.as_ref())?
-        }
+    fn write_file<P: AsRef<Path>, S: AsRef<[u8]>>(&self, name: P, data: S) -> Result<(), GfxError> {
+        let path = self.path().join(name.as_ref());
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .open(&path)
+            .map_err(|e| GfxError::from_io(e, path.clone()))?;
+        file.write_all(data.as_ref())
+            .map_err(|e| GfxError::from_io(e, path))?;
 
         Ok(())
     }
@@ -162,7 +172,7 @@ impl PciDevice {
                 } else {
                     Ok(false)
                 }
-            },
+            }
             Err(_) => self.lscpi_amd_check(),
         }
     }
@@ -171,25 +181,25 @@ impl PciDevice {
         fs::canonicalize(self.path.join("driver")).map(|path| PciDriver { path })
     }
 
-    pub unsafe fn remove(&self) -> io::Result<()> {
+    pub unsafe fn remove(&self) -> Result<(), GfxError> {
         self.write_file("remove", "1")
     }
 
-    pub fn set_runtime_pm(&self, state: RuntimePowerManagement) -> io::Result<()> {
+    pub fn set_runtime_pm(&self, state: RuntimePowerManagement) -> Result<(), GfxError> {
         self.write_file(PM_CONTROL_PATH, <&'static str>::from(state))
     }
 
     pub fn get_pm_status(&self) -> Result<GfxPower, GfxError> {
         match self.read_file(PM_STATUS_PATH) {
             Ok(inner) => GfxPower::from_str(inner.as_str()),
-            Err(inner) => {
-                if let Some(er) = inner.raw_os_error() {
-                    if er != 2 {
-                        return Err(GfxError::from(inner));
-                    }
-                }
+            Err(_) => {
+                // if let Some(er) = inner.raw_os_error() {
+                //     if er != 2 {
+                //         return Err(GfxError::from_io(inner));
+                //     }
+                // }
                 Ok(GfxPower::Off)
-            },
+            }
         }
     }
 }

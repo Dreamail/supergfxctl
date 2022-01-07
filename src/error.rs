@@ -1,5 +1,5 @@
 use std::fmt;
-use std::{error, process::ExitStatus};
+use std::{error, path::PathBuf, process::ExitStatus};
 
 #[derive(Debug)]
 pub enum GfxError {
@@ -16,8 +16,14 @@ pub enum GfxError {
     Read(String, std::io::Error),
     Write(String, std::io::Error),
     NotSupported(String),
-    Io(std::io::Error),
+    Io(PathBuf, std::io::Error),
     Zbus(zbus::Error),
+}
+
+impl GfxError {
+    pub fn from_io(error: std::io::Error, detail: PathBuf) -> Self {
+        Self::Io(detail, error)
+    }
 }
 
 impl fmt::Display for GfxError {
@@ -49,7 +55,13 @@ impl fmt::Display for GfxError {
             GfxError::Read(path, error) => write!(f, "Read {}: {}", path, error),
             GfxError::Write(path, error) => write!(f, "Write {}: {}", path, error),
             GfxError::NotSupported(path) => write!(f, "{}", path),
-            GfxError::Io(detail) => write!(f, "std::io error: {}", detail),
+            GfxError::Io(detail, error) => {
+                if detail.clone().into_os_string().is_empty() {
+                    write!(f, "std::io error: {}", error)
+                } else {
+                    write!(f, "std::io error: {}, {}", error, detail.display())
+                }
+            }
             GfxError::Zbus(detail) => write!(f, "Zbus error: {}", detail),
         }
     }
@@ -65,6 +77,6 @@ impl From<zbus::Error> for GfxError {
 
 impl From<std::io::Error> for GfxError {
     fn from(err: std::io::Error) -> Self {
-        GfxError::Io(err)
+        GfxError::Io(PathBuf::new(), err)
     }
 }

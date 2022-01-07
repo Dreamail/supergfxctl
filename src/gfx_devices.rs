@@ -8,11 +8,12 @@ use crate::{
     NVIDIA_DRIVERS,
 };
 
+use std::path::PathBuf;
+
 /// Collection of all graphics devices. Functions intend to work on the device
 /// determined to be the discreet GPU only.
 #[derive(Clone)]
 pub struct DiscreetGpu {
-    id: String,
     vendor: GfxVendor,
     functions: Vec<PciDevice>,
 }
@@ -50,7 +51,6 @@ impl DiscreetGpu {
                         info!("{} dGPU found", <&str>::from(&vendor));
                         dev.set_runtime_pm(RuntimePowerManagement::Auto)?;
                         return Ok(Self {
-                            id: dev.id().to_owned(),
                             vendor,
                             functions: functions(dev),
                         });
@@ -88,7 +88,7 @@ impl DiscreetGpu {
             .map_err(|e| GfxError::from(e))
     }
 
-    pub fn unbind(&self) -> Result<(), std::io::Error> {
+    pub fn unbind(&self) -> Result<(), GfxError> {
         for func in self.functions.iter() {
             if func.path().exists() {
                 match func.driver() {
@@ -105,7 +105,7 @@ impl DiscreetGpu {
                         std::io::ErrorKind::NotFound => (),
                         _ => {
                             error!("gfx driver: {:?}, {}", func.path(), err);
-                            return Err(err);
+                            return Err(GfxError::from_io(err, PathBuf::from(func.path())));
                         }
                     },
                 }
