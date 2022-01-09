@@ -1,6 +1,5 @@
 use std::process::Command;
 
-use gfx_devices::DiscreetGpu;
 use log::{error, warn};
 
 use crate::error::GfxError;
@@ -87,8 +86,6 @@ static PRIMARY_GPU_NVIDIA: &[u8] = br#"
 static PRIMARY_GPU_END: &[u8] = br#"
 EndSection"#;
 
-static EGPU_ENABLE_PATH: &str = "/sys/devices/platform/asus-nb-wmi/egpu_enable";
-
 /// Add or remove driver modules
 fn do_driver_action(driver: &str, action: &str) -> Result<(), GfxError> {
     let mut cmd = Command::new(action);
@@ -147,28 +144,4 @@ fn do_driver_action(driver: &str, action: &str) -> Result<(), GfxError> {
         count += 1;
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
-}
-
-/// Creates the full modprobe.conf required for vfio pass-through
-fn create_vfio_conf(devices: &DiscreetGpu) -> Vec<u8> {
-    let mut vifo = MODPROBE_VFIO.to_vec();
-    for (f_count, func) in devices.functions().iter().enumerate() {
-        let vendor = func.vendor().unwrap();
-        let device = func.device().unwrap();
-        unsafe {
-            vifo.append(format!("{:x}", vendor).as_mut_vec());
-        }
-        vifo.append(&mut vec![b':']);
-        unsafe {
-            vifo.append(format!("{:x}", device).as_mut_vec());
-        }
-        if f_count < devices.functions().len() - 1 {
-            vifo.append(&mut vec![b',']);
-        }
-    }
-    vifo.append(&mut vec![b',']);
-
-    let mut conf = MODPROBE_INTEGRATED.to_vec();
-    conf.append(&mut vifo);
-    conf
 }

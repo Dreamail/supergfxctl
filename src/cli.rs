@@ -16,7 +16,7 @@ struct CliStart {
     help: bool,
     #[options(
         meta = "",
-        help = "Set graphics mode: <hybrid, dedicated, integrated, compute, vfio, egpu>"
+        help = "Set graphics mode: <hybrid, integrated, vfio>, Nvidia-only: <dedicated, compute>, ASUS Flow: <egpu>"
     )]
     mode: Option<GfxMode>,
     #[options(help = "Get the current mode")]
@@ -73,7 +73,6 @@ fn do_gfx(command: CliStart) -> Result<(), Box<dyn std::error::Error>> {
         }
 
         println!("If anything fails check `journalctl -b -u supergfxd`\n");
-        println!("Note that nvidia-drm.modeset=0 is required in kernel cmdline to enable the nvidia drivers to be unloaded on demand`\n");
 
         proxy.gfx_write_mode(&mode)?;
 

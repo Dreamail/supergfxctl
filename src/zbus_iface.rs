@@ -19,7 +19,7 @@ impl CtrlGraphics {
     }
 
     fn power(&self) -> zbus::fdo::Result<GfxPower> {
-        self.devices().get_runtime_status().map_err(|err| {
+        self.dgpu().get_runtime_status().map_err(|err| {
             error!("{}", err);
             zbus::fdo::Error::Failed(format!("GFX fail: {}", err))
         })

@@ -4,7 +4,7 @@ use logind_zbus::{
     types::{SessionClass, SessionInfo, SessionState, SessionType},
     ManagerProxy, SessionProxy,
 };
-use std::{fs::OpenOptions, io::Write, ops::Add, path::Path, time::Instant};
+use std::time::Instant;
 use std::{process::Command, thread::sleep, time::Duration};
 use std::{
     sync::atomic::{AtomicBool, Ordering},
@@ -13,10 +13,13 @@ use std::{
 };
 
 use crate::{
+    config::{create_modprobe_conf, create_xorg_conf},
     error::GfxError,
     gfx_devices::DiscreetGpu,
     pci_device::{rescan_pci_bus, RuntimePowerManagement},
-    special::{get_asus_gsync_gfx_mode, has_asus_gsync_gfx_mode},
+    special::{
+        asus_egpu_exists, asus_egpu_set_status, get_asus_gsync_gfx_mode, has_asus_gsync_gfx_mode,
+    },
     *,
 };
 
@@ -40,13 +43,20 @@ impl CtrlGraphics {
         })
     }
 
-    pub fn devices(&self) -> &DiscreetGpu {
+    pub fn dgpu(&self) -> &DiscreetGpu {
         &self.dgpu
     }
 
-    /// Force reinit of all state, including reset of device state
+    /// Force re-init of all state, including reset of device state
     pub fn reload(&mut self) -> Result<(), GfxError> {
-        self.auto_power()?;
+        let vfio_enable = if let Ok(config) = self.config.try_lock() {
+            config.gfx_vfio_enable
+        } else {
+            false
+        };
+
+        Self::do_mode_setup_tasks(self.get_gfx_mode()?, vfio_enable, &self.dgpu)?;
+
         info!("Reloaded gfx mode: {:?}", self.get_gfx_mode()?);
         Ok(())
     }
@@ -60,7 +70,7 @@ impl CtrlGraphics {
     }
 
     /// Associated method to get which vendor mode is set
-    pub(super) fn get_gfx_mode(&self) -> Result<GfxMode, GfxError> {
+    pub(crate) fn get_gfx_mode(&self) -> Result<GfxMode, GfxError> {
         if let Ok(config) = self.config.lock() {
             if let Some(mode) = config.gfx_tmp_mode {
                 return Ok(mode);
@@ -68,80 +78,6 @@ impl CtrlGraphics {
             return Ok(config.gfx_mode);
         }
         Err(GfxError::ParseVendor)
-    }
-
-    /// Write the appropriate xorg config for the chosen mode
-    fn write_xorg_conf(mode: GfxMode, gfx: &DiscreetGpu) -> Result<(), GfxError> {
-        let text = if gfx.is_nvidia() {
-            if mode == GfxMode::Dedicated {
-                [
-                    PRIMARY_GPU_NVIDIA_BEGIN,
-                    PRIMARY_GPU_NVIDIA,
-                    PRIMARY_GPU_END,
-                ]
-                .concat()
-            } else {
-                [PRIMARY_GPU_NVIDIA_BEGIN, PRIMARY_GPU_END].concat()
-            }
-        } else if gfx.is_amd() {
-            warn!("No valid AMD dGPU xorg config available yet");
-            return Ok(());
-        } else {
-            warn!("No valid xorg config for device");
-            return Ok(());
-        };
-
-        if !Path::new(XORG_PATH).exists() {
-            std::fs::create_dir(XORG_PATH).map_err(|err| GfxError::Write(XORG_PATH.into(), err))?;
-        }
-
-        let file = XORG_PATH.to_string().add(XORG_FILE);
-        info!("Writing {}", file);
-        let mut file = std::fs::OpenOptions::new()
-            .create(true)
-            .truncate(true)
-            .write(true)
-            .open(&file)
-            .map_err(|err| GfxError::Write(file, err))?;
-
-        file.write_all(&text)
-            .and_then(|_| file.sync_all())
-            .map_err(|err| GfxError::Write(MODPROBE_PATH.into(), err))?;
-        Ok(())
-    }
-
-    fn write_modprobe_conf(vendor: GfxMode, devices: &DiscreetGpu) -> Result<(), GfxError> {
-        info!("Writing {}", MODPROBE_PATH);
-        let content = match vendor {
-            GfxMode::Dedicated | GfxMode::Hybrid | GfxMode::Egpu => {
-                if devices.is_nvidia() {
-                    let mut base = MODPROBE_NVIDIA_BASE.to_vec();
-                    base.append(&mut MODPROBE_NVIDIA_DRM_MODESET.to_vec());
-                    base
-                } else if devices.is_amd() {
-                    return Ok(());
-                } else {
-                    warn!("No valid modprobe config for device");
-                    return Ok(());
-                }
-            }
-            GfxMode::Vfio => create_vfio_conf(devices),
-            GfxMode::Integrated => MODPROBE_INTEGRATED.to_vec(),
-            GfxMode::Compute => MODPROBE_NVIDIA_BASE.to_vec(),
-        };
-
-        let mut file = std::fs::OpenOptions::new()
-            .create(true)
-            .truncate(true)
-            .write(true)
-            .open(MODPROBE_PATH)
-            .map_err(|err| GfxError::Path(MODPROBE_PATH.into(), err))?;
-
-        file.write_all(&content)
-            .and_then(|_| file.sync_all())
-            .map_err(|err| GfxError::Write(MODPROBE_PATH.into(), err))?;
-
-        Ok(())
     }
 
     fn do_display_manager_action(action: &str) -> Result<(), GfxError> {
@@ -232,11 +168,11 @@ impl CtrlGraphics {
             mode,
             GfxMode::Dedicated | GfxMode::Hybrid | GfxMode::Integrated
         ) {
-            Self::write_xorg_conf(mode, devices)?;
+            create_xorg_conf(mode, devices)?;
         }
 
         // Write different modprobe to enable boot control to work
-        Self::write_modprobe_conf(mode, devices)?;
+        create_modprobe_conf(mode, devices)?;
 
         match mode {
             GfxMode::Dedicated | GfxMode::Hybrid | GfxMode::Compute => {
@@ -245,8 +181,8 @@ impl CtrlGraphics {
                         do_driver_action(driver, "rmmod")?;
                     }
                 }
-                if Self::egpu_exists() {
-                    Self::egpu_set_status(false)?;
+                if asus_egpu_exists() {
+                    asus_egpu_set_status(false)?;
                 }
                 devices.do_driver_action("modprobe")?;
             }
@@ -271,8 +207,8 @@ impl CtrlGraphics {
                 devices.unbind_remove()?;
                 // This can only be done *after* the drivers are removed or a
                 // hardlock will be caused
-                if Self::egpu_exists() {
-                    Self::egpu_set_status(false)?;
+                if asus_egpu_exists() {
+                    asus_egpu_set_status(false)?;
                 }
             }
             GfxMode::Egpu => {
@@ -282,42 +218,11 @@ impl CtrlGraphics {
                     }
                 }
 
-                Self::egpu_set_status(true)?;
+                asus_egpu_set_status(true)?;
 
                 devices.do_driver_action("modprobe")?;
             }
         }
-        Ok(())
-    }
-
-    fn egpu_exists() -> bool {
-        if Path::new(EGPU_ENABLE_PATH).exists() {
-            return true;
-        }
-        false
-    }
-
-    fn egpu_set_status(status: bool) -> Result<(), GfxError> {
-        // toggling from egpu must have the nvidia driver unloaded
-        for driver in NVIDIA_DRIVERS.iter() {
-            do_driver_action(driver, "rmmod")?;
-        }
-        // Need to set, scan, set to ensure mode is correctly set
-        Self::toggle_egpu_path(status)?;
-        rescan_pci_bus()?;
-        Self::toggle_egpu_path(status)?;
-        Ok(())
-    }
-
-    fn toggle_egpu_path(status: bool) -> Result<(), GfxError> {
-        let path = Path::new(EGPU_ENABLE_PATH);
-        let mut file = OpenOptions::new()
-            .write(true)
-            .open(path)
-            .map_err(|err| GfxError::Path(EGPU_ENABLE_PATH.to_string(), err))?;
-        let status = if status { 1 } else { 0 };
-        file.write_all(status.to_string().as_bytes())
-            .map_err(|err| GfxError::Write(EGPU_ENABLE_PATH.to_string(), err))?;
         Ok(())
     }
 
@@ -466,9 +371,16 @@ impl CtrlGraphics {
             return Err(GfxError::VfioDisabled);
         }
 
-        if matches!(mode, GfxMode::Egpu) && !Self::egpu_exists() {
-            error!("Egpu mode requested when either the laptop doesn't support it or the kernel is not recent enough");
-            return Err(GfxError::NotSupported(EGPU_ENABLE_PATH.to_string()));
+        if matches!(mode, GfxMode::Egpu) && !asus_egpu_exists() {
+            let text = "Egpu mode requested when either the laptop doesn't support it or the kernel is not recent enough".to_string();
+            error!("{}", &text);
+            return Err(GfxError::NotSupported(text));
+        }
+
+        if matches!(mode, GfxMode::Dedicated) && self.dgpu.is_amd() {
+            let text = "Dedicated mode unsupported on AMD dGPU systems".to_string();
+            error!("{}", &text);
+            return Err(GfxError::NotSupported(text));
         }
 
         // determine which method we need here
@@ -501,17 +413,5 @@ impl CtrlGraphics {
         }
 
         Ok(action_required)
-    }
-
-    /// Used only on boot to set correct mode
-    fn auto_power(&mut self) -> Result<(), GfxError> {
-        let vfio_enable = if let Ok(config) = self.config.try_lock() {
-            config.gfx_vfio_enable
-        } else {
-            false
-        };
-
-        Self::do_mode_setup_tasks(self.get_gfx_mode()?, vfio_enable, &self.dgpu)?;
-        Ok(())
     }
 }

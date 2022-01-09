@@ -90,11 +90,11 @@ fn do_asus_laptop_checks(
         if let Ok(config) = config.lock() {
             if ded == 1 {
                 warn!("Dedicated GFX toggle is on but driver mode is not nvidia \nSetting to nvidia driver mode");
-                let devices = ctrl.devices();
+                let devices = ctrl.dgpu();
                 CtrlGraphics::do_mode_setup_tasks(GfxMode::Dedicated, false, &devices)?;
             } else if ded == 0 {
                 info!("Dedicated GFX toggle is off");
-                let devices = ctrl.devices();
+                let devices = ctrl.dgpu();
                 CtrlGraphics::do_mode_setup_tasks(config.gfx_mode, false, &devices)?;
             }
         }
