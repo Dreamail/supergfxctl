@@ -1,8 +1,10 @@
 use std::process::Command;
 
+use gfx_devices::DiscreetGpu;
+use gfx_vendors::GfxMode;
 use log::{error, warn};
 
-use crate::error::GfxError;
+use crate::{error::GfxError, special::asus_egpu_exists};
 
 /// The configuration for graphics. This should be saved and loaded on boot.
 pub mod config;
@@ -85,6 +87,29 @@ static PRIMARY_GPU_NVIDIA: &[u8] = br#"
 
 static PRIMARY_GPU_END: &[u8] = br#"
 EndSection"#;
+
+/// Basic check for support. If `()` returned everything is kosher.
+fn mode_support_check(mode: &GfxMode, dgpu: &DiscreetGpu) -> Result<(), GfxError> {
+    if matches!(mode, GfxMode::Egpu) && !asus_egpu_exists() {
+        let text = "Egpu mode requested when either the laptop doesn't support it or the kernel is not recent enough".to_string();
+        error!("{}", &text);
+        return Err(GfxError::NotSupported(text));
+    }
+
+    if matches!(mode, GfxMode::Dedicated) && dgpu.is_amd() {
+        let text = "Dedicated mode unsupported on AMD dGPU systems".to_string();
+        error!("{}", &text);
+        return Err(GfxError::NotSupported(text));
+    }
+
+    if matches!(mode, GfxMode::Compute) && dgpu.is_amd() {
+        let text = "Compute mode unsupported on AMD dGPU systems".to_string();
+        error!("{}", &text);
+        return Err(GfxError::NotSupported(text));
+    }
+
+    Ok(())
+}
 
 /// Add or remove driver modules
 fn do_driver_action(driver: &str, action: &str) -> Result<(), GfxError> {

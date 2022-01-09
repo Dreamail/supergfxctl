@@ -371,17 +371,7 @@ impl CtrlGraphics {
             return Err(GfxError::VfioDisabled);
         }
 
-        if matches!(mode, GfxMode::Egpu) && !asus_egpu_exists() {
-            let text = "Egpu mode requested when either the laptop doesn't support it or the kernel is not recent enough".to_string();
-            error!("{}", &text);
-            return Err(GfxError::NotSupported(text));
-        }
-
-        if matches!(mode, GfxMode::Dedicated) && self.dgpu.is_amd() {
-            let text = "Dedicated mode unsupported on AMD dGPU systems".to_string();
-            error!("{}", &text);
-            return Err(GfxError::NotSupported(text));
-        }
+        mode_support_check(&mode, &self.dgpu)?;
 
         // determine which method we need here
         let action_required = self.is_logout_required(mode);

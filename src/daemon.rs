@@ -62,10 +62,11 @@ fn start_daemon() -> Result<(), Box<dyn Error>> {
                 // Need to check if a laptop has the dedicated gfx switch
                 if has_asus_gsync_gfx_mode() {
                     do_asus_laptop_checks(&ctrl, config)?;
+                } else {
+                    ctrl.reload()
+                        .unwrap_or_else(|err| error!("Gfx controller: {}", err));
                 }
 
-                ctrl.reload()
-                    .unwrap_or_else(|err| error!("Gfx controller: {}", err));
                 ctrl.add_to_server(&mut object_server);
             }
             Err(err) => {
