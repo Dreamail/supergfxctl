@@ -2,7 +2,8 @@
 
 use std::{env::args, process::Command, sync::mpsc::channel};
 use supergfxctl::{
-    gfx_vendors::{GfxRequiredUserAction, GfxVendors},
+    error::GfxError,
+    gfx_vendors::{GfxMode, GfxRequiredUserAction},
     special::{get_asus_gsync_gfx_mode, has_asus_gsync_gfx_mode},
     zbus_proxy::GfxProxy,
 };
@@ -16,9 +17,9 @@ struct CliStart {
     help: bool,
     #[options(
         meta = "",
-        help = "Set graphics mode: <nvidia, hybrid, compute, integrated, egpu>"
+        help = "Set graphics mode: <hybrid, integrated, vfio>, Nvidia-only: <dedicated, compute>, ASUS Flow: <egpu>"
     )]
-    mode: Option<GfxVendors>,
+    mode: Option<GfxMode>,
     #[options(help = "Get the current mode")]
     get: bool,
     #[options(help = "Get the current power status")]
@@ -33,19 +34,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     match CliStart::parse_args_default(&args) {
         Ok(command) => {
             do_gfx(command).map_err(|err|{
-                println!("Graphics mode change error.");
+                eprintln!("Graphics mode change error.");
                 if !check_systemd_unit_enabled("supergfxd") {
-                    println!("\x1b[0;31msupergfxd is not enabled, enable it with `systemctl enable supergfxd\x1b[0m");
+                    eprintln!("\x1b[0;31msupergfxd is not enabled, enable it with `systemctl enable supergfxd\x1b[0m");
                 } else if !check_systemd_unit_active("supergfxd") {
-                    println!("\x1b[0;31msupergfxd is not running, start it with `systemctl start supergfxd\x1b[0m");
+                    eprintln!("\x1b[0;31msupergfxd is not running, start it with `systemctl start supergfxd\x1b[0m");
                 } else {
-                    println!("You may be in an invalid state or supergfxd may not be running");
-                    println!("Please check `journalctl -b -u supergfxd`, and `systemctl status supergfxd`");
+                    match &err {
+                        GfxError::Zbus(err) => {
+                            match err {
+                                zbus::Error::MethodError(_,s,_) => {
+                                    if let Some(text) = s {
+                                        eprintln!("\x1b[0;31m{}\x1b[0m", text);
+                                    } else {
+                                        eprintln!("{}", err);
+                                    }
+                                }
+                                _ => eprintln!("{}", err),
+                            }
+                        }
+                        _ => eprintln!("{}", err),
+                    }
+                    eprintln!("Please check `journalctl -b -u supergfxd`, and `systemctl status supergfxd`");
                 }
-                println!();
-                print_laptop_info();
                 err
-            })?;
+            }).ok();
         }
         Err(err) => {
             eprintln!("source {}", err);
@@ -56,7 +69,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn do_gfx(command: CliStart) -> Result<(), Box<dyn std::error::Error>> {
+fn do_gfx(command: CliStart) -> Result<(), GfxError> {
     if command.mode.is_none() && !command.get && !command.pow && !command.force || command.help {
         println!("{}", command.self_usage());
     }
@@ -74,7 +87,6 @@ fn do_gfx(command: CliStart) -> Result<(), Box<dyn std::error::Error>> {
         }
 
         println!("If anything fails check `journalctl -b -u supergfxd`\n");
-        println!("Note that nvidia-drm.modeset=0 is required in kernel cmdline to enable the nvidia drivers to be unloaded on demand`\n");
 
         proxy.gfx_write_mode(&mode)?;
 
@@ -138,13 +150,4 @@ fn check_systemd_unit_enabled(name: &str) -> bool {
         return buf.contains("enabled");
     }
     false
-}
-
-fn print_laptop_info() {
-    let dmi = sysfs_class::DmiId::default();
-    let board_name = dmi.board_name().expect("Could not get board_name");
-    let prod_family = dmi.product_family().expect("Could not get product_family");
-
-    println!("Product family: {}", prod_family.trim());
-    println!("Board name: {}", board_name.trim());
 }

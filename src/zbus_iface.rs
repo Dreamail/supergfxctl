@@ -3,7 +3,7 @@ use log::{error, info, warn};
 use zvariant::ObjectPath;
 
 use crate::{
-    gfx_vendors::{GfxPower, GfxRequiredUserAction, GfxVendors},
+    gfx_vendors::{GfxMode, GfxPower, GfxRequiredUserAction},
     DBUS_IFACE_PATH,
 };
 
@@ -11,38 +11,38 @@ use super::controller::CtrlGraphics;
 
 #[dbus_interface(name = "org.supergfxctl.Daemon")]
 impl CtrlGraphics {
-    fn vendor(&self) -> zbus::fdo::Result<GfxVendors> {
+    fn vendor(&self) -> zbus::fdo::Result<GfxMode> {
         self.get_gfx_mode().map_err(|err| {
-            error!("GFX: {}", err);
+            error!("{}", err);
             zbus::fdo::Error::Failed(format!("GFX fail: {}", err))
         })
     }
 
     fn power(&self) -> zbus::fdo::Result<GfxPower> {
-        Self::get_runtime_status().map_err(|err| {
-            error!("GFX: {}", err);
+        self.dgpu().get_runtime_status().map_err(|err| {
+            error!("{}", err);
             zbus::fdo::Error::Failed(format!("GFX fail: {}", err))
         })
     }
 
-    fn set_vendor(&mut self, vendor: GfxVendors) -> zbus::fdo::Result<GfxRequiredUserAction> {
-        info!("GFX: Switching gfx mode to {}", <&str>::from(vendor));
+    fn set_vendor(&mut self, vendor: GfxMode) -> zbus::fdo::Result<GfxRequiredUserAction> {
+        info!("Switching gfx mode to {}", <&str>::from(vendor));
         let msg = self.set_gfx_mode(vendor).map_err(|err| {
-            error!("GFX: {}", err);
+            error!("{}", err);
             zbus::fdo::Error::Failed(format!("GFX fail: {}", err))
         })?;
 
         self.notify_action(&msg)
-            .unwrap_or_else(|err| warn!("GFX: {}", err));
+            .unwrap_or_else(|err| warn!("{}", err));
 
         self.notify_gfx(&vendor)
-            .unwrap_or_else(|err| warn!("GFX: {}", err));
+            .unwrap_or_else(|err| warn!("{}", err));
 
         Ok(msg)
     }
 
     #[dbus_interface(signal)]
-    fn notify_gfx(&self, vendor: &GfxVendors) -> zbus::Result<()> {}
+    fn notify_gfx(&self, vendor: &GfxMode) -> zbus::Result<()> {}
 
     #[dbus_interface(signal)]
     fn notify_action(&self, action: &GfxRequiredUserAction) -> zbus::Result<()> {}
@@ -53,7 +53,7 @@ impl CtrlGraphics {
         server
             .at(&ObjectPath::from_str_unchecked(DBUS_IFACE_PATH), self)
             .map_err(|err| {
-                warn!("GFX: CtrlGraphics: add_to_server {}", err);
+                warn!("CtrlGraphics: add_to_server {}", err);
                 err
             })
             .ok();

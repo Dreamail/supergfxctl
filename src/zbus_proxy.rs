@@ -19,12 +19,12 @@
 //!
 //! …consequently `zbus-xmlgen` did not generate code for the above interfaces.
 
-use std::sync::mpsc::{Sender};
+use std::sync::mpsc::Sender;
 
 use zbus::{dbus_proxy, Connection, Message, Result};
 
 use crate::{
-    gfx_vendors::{GfxPower, GfxRequiredUserAction, GfxVendors},
+    gfx_vendors::{GfxMode, GfxPower, GfxRequiredUserAction},
     DBUS_IFACE_PATH,
 };
 
@@ -34,10 +34,10 @@ trait Daemon {
     fn power(&self) -> zbus::Result<GfxPower>;
 
     /// SetVendor method
-    fn set_vendor(&self, vendor: &GfxVendors) -> zbus::Result<GfxRequiredUserAction>;
+    fn set_vendor(&self, vendor: &GfxMode) -> zbus::Result<GfxRequiredUserAction>;
 
     /// Vendor method
-    fn vendor(&self) -> zbus::Result<GfxVendors>;
+    fn vendor(&self) -> zbus::Result<GfxMode>;
 
     /// NotifyAction signal
     #[dbus_proxy(signal)]
@@ -45,7 +45,7 @@ trait Daemon {
 
     /// NotifyGfx signal
     #[dbus_proxy(signal)]
-    fn notify_gfx(&self, vendor: GfxVendors) -> zbus::Result<()>;
+    fn notify_gfx(&self, vendor: GfxMode) -> zbus::Result<()>;
 }
 
 pub struct GfxProxy<'a>(pub DaemonProxy<'a>);
@@ -80,12 +80,12 @@ impl<'a> GfxProxy<'a> {
     }
 
     #[inline]
-    pub fn gfx_get_mode(&self) -> Result<GfxVendors> {
+    pub fn gfx_get_mode(&self) -> Result<GfxMode> {
         self.0.vendor()
     }
 
     #[inline]
-    pub fn gfx_write_mode(&self, vendor: &GfxVendors) -> Result<GfxRequiredUserAction> {
+    pub fn gfx_write_mode(&self, vendor: &GfxMode) -> Result<GfxRequiredUserAction> {
         self.0.set_vendor(vendor)
     }
 
@@ -102,7 +102,7 @@ impl<'a> GfxProxy<'a> {
     }
 
     #[inline]
-    pub fn connect_notify_gfx(&self, send: Sender<GfxVendors>) -> zbus::fdo::Result<()> {
+    pub fn connect_notify_gfx(&self, send: Sender<GfxMode>) -> zbus::fdo::Result<()> {
         self.0.connect_notify_gfx(move |data| {
             send.send(data)
                 .map_err(|err| zbus::fdo::Error::Failed(err.to_string()))?;

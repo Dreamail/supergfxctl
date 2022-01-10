@@ -10,7 +10,7 @@ use supergfxctl::{
     config::GfxConfig,
     controller::CtrlGraphics,
     error::GfxError,
-    gfx_vendors::GfxVendors,
+    gfx_vendors::GfxMode,
     special::{get_asus_gsync_gfx_mode, has_asus_gsync_gfx_mode},
     CONFIG_PATH, DBUS_DEST_NAME,
 };
@@ -62,10 +62,11 @@ fn start_daemon() -> Result<(), Box<dyn Error>> {
                 // Need to check if a laptop has the dedicated gfx switch
                 if has_asus_gsync_gfx_mode() {
                     do_asus_laptop_checks(&ctrl, config)?;
+                } else {
+                    ctrl.reload()
+                        .unwrap_or_else(|err| error!("Gfx controller: {}", err));
                 }
 
-                ctrl.reload()
-                    .unwrap_or_else(|err| error!("Gfx controller: {}", err));
                 ctrl.add_to_server(&mut object_server);
             }
             Err(err) => {
@@ -90,14 +91,12 @@ fn do_asus_laptop_checks(
         if let Ok(config) = config.lock() {
             if ded == 1 {
                 warn!("Dedicated GFX toggle is on but driver mode is not nvidia \nSetting to nvidia driver mode");
-                let devices = ctrl.devices();
-                let bus = ctrl.bus();
-                CtrlGraphics::do_mode_setup_tasks(GfxVendors::Nvidia, false, &devices, &bus)?;
+                let devices = ctrl.dgpu();
+                CtrlGraphics::do_mode_setup_tasks(GfxMode::Dedicated, false, &devices)?;
             } else if ded == 0 {
                 info!("Dedicated GFX toggle is off");
-                let devices = ctrl.devices();
-                let bus = ctrl.bus();
-                CtrlGraphics::do_mode_setup_tasks(config.gfx_mode, false, &devices, &bus)?;
+                let devices = ctrl.dgpu();
+                CtrlGraphics::do_mode_setup_tasks(config.gfx_mode, false, &devices)?;
             }
         }
     }
