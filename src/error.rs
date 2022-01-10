@@ -18,6 +18,7 @@ pub enum GfxError {
     NotSupported(String),
     Io(PathBuf, std::io::Error),
     Zbus(zbus::Error),
+    ZbusFdo(zbus::fdo::Error),
 }
 
 impl GfxError {
@@ -63,6 +64,7 @@ impl fmt::Display for GfxError {
                 }
             }
             GfxError::Zbus(detail) => write!(f, "Zbus error: {}", detail),
+            GfxError::ZbusFdo(detail) => write!(f, "Zbus error: {}", detail),
         }
     }
 }
@@ -72,6 +74,12 @@ impl error::Error for GfxError {}
 impl From<zbus::Error> for GfxError {
     fn from(err: zbus::Error) -> Self {
         GfxError::Zbus(err)
+    }
+}
+
+impl From<zbus::fdo::Error> for GfxError {
+    fn from(err: zbus::fdo::Error) -> Self {
+        GfxError::ZbusFdo(err)
     }
 }
 

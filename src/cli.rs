@@ -2,6 +2,7 @@
 
 use std::{env::args, process::Command, sync::mpsc::channel};
 use supergfxctl::{
+    error::GfxError,
     gfx_vendors::{GfxMode, GfxRequiredUserAction},
     special::{get_asus_gsync_gfx_mode, has_asus_gsync_gfx_mode},
     zbus_proxy::GfxProxy,
@@ -33,18 +34,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     match CliStart::parse_args_default(&args) {
         Ok(command) => {
             do_gfx(command).map_err(|err|{
-                println!("Graphics mode change error.");
+                eprintln!("Graphics mode change error.");
                 if !check_systemd_unit_enabled("supergfxd") {
-                    println!("\x1b[0;31msupergfxd is not enabled, enable it with `systemctl enable supergfxd\x1b[0m");
+                    eprintln!("\x1b[0;31msupergfxd is not enabled, enable it with `systemctl enable supergfxd\x1b[0m");
                 } else if !check_systemd_unit_active("supergfxd") {
-                    println!("\x1b[0;31msupergfxd is not running, start it with `systemctl start supergfxd\x1b[0m");
+                    eprintln!("\x1b[0;31msupergfxd is not running, start it with `systemctl start supergfxd\x1b[0m");
                 } else {
-                    println!("You may be in an invalid state or supergfxd may not be running");
-                    println!("Please check `journalctl -b -u supergfxd`, and `systemctl status supergfxd`");
+                    match &err {
+                        GfxError::Zbus(err) => {
+                            match err {
+                                zbus::Error::MethodError(_,s,_) => {
+                                    if let Some(text) = s {
+                                        eprintln!("\x1b[0;31m{}\x1b[0m", text);
+                                    } else {
+                                        eprintln!("{}", err);
+                                    }
+                                }
+                                _ => eprintln!("{}", err),
+                            }
+                        }
+                        _ => eprintln!("{}", err),
+                    }
+                    eprintln!("Please check `journalctl -b -u supergfxd`, and `systemctl status supergfxd`");
                 }
-                println!();
                 err
-            })?;
+            }).ok();
         }
         Err(err) => {
             eprintln!("source {}", err);
@@ -55,7 +69,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn do_gfx(command: CliStart) -> Result<(), Box<dyn std::error::Error>> {
+fn do_gfx(command: CliStart) -> Result<(), GfxError> {
     if command.mode.is_none() && !command.get && !command.pow && !command.force || command.help {
         println!("{}", command.self_usage());
     }

@@ -92,19 +92,16 @@ EndSection"#;
 fn mode_support_check(mode: &GfxMode, dgpu: &DiscreetGpu) -> Result<(), GfxError> {
     if matches!(mode, GfxMode::Egpu) && !asus_egpu_exists() {
         let text = "Egpu mode requested when either the laptop doesn't support it or the kernel is not recent enough".to_string();
-        error!("{}", &text);
         return Err(GfxError::NotSupported(text));
     }
 
     if matches!(mode, GfxMode::Dedicated) && dgpu.is_amd() {
         let text = "Dedicated mode unsupported on AMD dGPU systems".to_string();
-        error!("{}", &text);
         return Err(GfxError::NotSupported(text));
     }
 
     if matches!(mode, GfxMode::Compute) && dgpu.is_amd() {
         let text = "Compute mode unsupported on AMD dGPU systems".to_string();
-        error!("{}", &text);
         return Err(GfxError::NotSupported(text));
     }
 
