@@ -7,8 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Add new method: Vendor to get dGPU vendor name
+- Add new dbus method: `Vendor` to get dGPU vendor name
+- Add new dbus method: `Supported` to get list of supported modes
 - Add `-v, --vendor` CLI arg to get dGPU vendor name
+- Add `-s, --supported` CLI arg to get list of supported modes
 ### Breaking
 - Rename Vendor, GetVendor to Mode, GetMode to better reflect their results
 

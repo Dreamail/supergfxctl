@@ -15,13 +15,12 @@ use zbus::Connection;
 struct CliStart {
     #[options(help = "print help message")]
     help: bool,
-    #[options(
-        meta = "",
-        help = "Set graphics mode: <hybrid, integrated, vfio>, Nvidia-only: <dedicated, compute>, ASUS Flow: <egpu>"
-    )]
+    #[options(meta = "", help = "Set graphics mode")]
     mode: Option<GfxMode>,
     #[options(help = "Get the current mode")]
     get: bool,
+    #[options(help = "Get the supported modes")]
+    supported: bool,
     #[options(help = "Get the dGPU vendor name")]
     vendor: bool,
     #[options(help = "Get the current power status")]
@@ -72,7 +71,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn do_gfx(command: CliStart) -> Result<(), GfxError> {
-    if command.mode.is_none() && !command.get && !command.vendor && !command.pow && !command.force
+    if command.mode.is_none()
+        && !command.get
+        && !command.supported
+        && !command.vendor
+        && !command.pow
+        && !command.force
         || command.help
     {
         println!("{}", command.self_usage());
@@ -123,6 +127,10 @@ fn do_gfx(command: CliStart) -> Result<(), GfxError> {
     if command.get {
         let res = proxy.gfx_get_mode()?;
         println!("Current graphics mode: {}", <&str>::from(res));
+    }
+    if command.supported {
+        let res = proxy.gfx_get_supported_modes()?;
+        println!("Supported graphics modes: {:?}", res);
     }
     if command.vendor {
         let res = proxy.gfx_get_vendor()?;
