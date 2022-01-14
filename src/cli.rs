@@ -22,6 +22,8 @@ struct CliStart {
     mode: Option<GfxMode>,
     #[options(help = "Get the current mode")]
     get: bool,
+    #[options(help = "Get the dGPU vendor name")]
+    vendor: bool,
     #[options(help = "Get the current power status")]
     pow: bool,
     #[options(help = "Do not ask for confirmation")]
@@ -70,7 +72,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn do_gfx(command: CliStart) -> Result<(), GfxError> {
-    if command.mode.is_none() && !command.get && !command.pow && !command.force || command.help {
+    if command.mode.is_none() && !command.get && !command.vendor && !command.pow && !command.force
+        || command.help
+    {
         println!("{}", command.self_usage());
     }
 
@@ -119,6 +123,10 @@ fn do_gfx(command: CliStart) -> Result<(), GfxError> {
     if command.get {
         let res = proxy.gfx_get_mode()?;
         println!("Current graphics mode: {}", <&str>::from(res));
+    }
+    if command.vendor {
+        let res = proxy.gfx_get_vendor()?;
+        println!("dGPU vendor: {}", res);
     }
     if command.pow {
         let res = proxy.gfx_get_pwr()?;

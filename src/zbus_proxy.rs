@@ -33,11 +33,14 @@ trait Daemon {
     /// Power method
     fn power(&self) -> zbus::Result<GfxPower>;
 
-    /// SetVendor method
-    fn set_vendor(&self, vendor: &GfxMode) -> zbus::Result<GfxRequiredUserAction>;
+    /// SetMode method
+    fn set_mode(&self, mode: &GfxMode) -> zbus::Result<GfxRequiredUserAction>;
+
+    /// Mode method
+    fn mode(&self) -> zbus::Result<GfxMode>;
 
     /// Vendor method
-    fn vendor(&self) -> zbus::Result<GfxMode>;
+    fn vendor(&self) -> zbus::Result<String>;
 
     /// NotifyAction signal
     #[dbus_proxy(signal)]
@@ -45,7 +48,7 @@ trait Daemon {
 
     /// NotifyGfx signal
     #[dbus_proxy(signal)]
-    fn notify_gfx(&self, vendor: GfxMode) -> zbus::Result<()>;
+    fn notify_gfx(&self, mode: GfxMode) -> zbus::Result<()>;
 }
 
 pub struct GfxProxy<'a>(pub DaemonProxy<'a>);
@@ -75,18 +78,23 @@ impl<'a> GfxProxy<'a> {
     }
 
     #[inline]
+    pub fn gfx_get_vendor(&self) -> Result<String> {
+        self.0.vendor()
+    }
+
+    #[inline]
     pub fn gfx_get_pwr(&self) -> Result<GfxPower> {
         self.0.power()
     }
 
     #[inline]
     pub fn gfx_get_mode(&self) -> Result<GfxMode> {
-        self.0.vendor()
+        self.0.mode()
     }
 
     #[inline]
-    pub fn gfx_write_mode(&self, vendor: &GfxMode) -> Result<GfxRequiredUserAction> {
-        self.0.set_vendor(vendor)
+    pub fn gfx_write_mode(&self, mode: &GfxMode) -> Result<GfxRequiredUserAction> {
+        self.0.set_mode(mode)
     }
 
     #[inline]

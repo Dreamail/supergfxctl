@@ -11,13 +11,34 @@ use super::controller::CtrlGraphics;
 
 #[dbus_interface(name = "org.supergfxctl.Daemon")]
 impl CtrlGraphics {
-    fn vendor(&self) -> zbus::fdo::Result<GfxMode> {
+    /// Get the current graphics mode:
+    /// enum {
+    ///     Hybrid,
+    ///     Dedicated,
+    ///     Integrated,
+    ///     Compute,
+    ///     Vfio,
+    ///     Egpu,
+    /// }
+    fn mode(&self) -> zbus::fdo::Result<GfxMode> {
         self.get_gfx_mode().map_err(|err| {
             error!("{}", err);
             zbus::fdo::Error::Failed(format!("GFX fail: {}", err))
         })
     }
 
+    /// Get the vendor nae of the dGPU
+    fn vendor(&self) -> zbus::fdo::Result<String> {
+        Ok(<&str>::from(self.get_gfx_vendor()).to_string())
+    }
+
+    /// Get the current power status:
+    /// enum {
+    ///     Active,
+    ///     Suspended,
+    ///     Off,
+    ///     Unknown,
+    /// }
     fn power(&self) -> zbus::fdo::Result<GfxPower> {
         self.dgpu().get_runtime_status().map_err(|err| {
             error!("{}", err);
@@ -25,9 +46,26 @@ impl CtrlGraphics {
         })
     }
 
-    fn set_vendor(&mut self, vendor: GfxMode) -> zbus::fdo::Result<GfxRequiredUserAction> {
-        info!("Switching gfx mode to {}", <&str>::from(vendor));
-        let msg = self.set_gfx_mode(vendor).map_err(|err| {
+    /// Set the graphics mode:
+    /// enum {
+    ///     Hybrid,
+    ///     Dedicated,
+    ///     Integrated,
+    ///     Compute,
+    ///     Vfio,
+    ///     Egpu,
+    /// }
+    ///
+    /// Returns action required:
+    /// enum {
+    ///     Logout,
+    ///     Reboot,
+    ///     Integrated,
+    ///     None,
+    /// }
+    fn set_mode(&mut self, mode: GfxMode) -> zbus::fdo::Result<GfxRequiredUserAction> {
+        info!("Switching gfx mode to {}", <&str>::from(mode));
+        let msg = self.set_gfx_mode(mode).map_err(|err| {
             error!("{}", err);
             zbus::fdo::Error::Failed(format!("GFX fail: {}", err))
         })?;
@@ -35,7 +73,7 @@ impl CtrlGraphics {
         self.notify_action(&msg)
             .unwrap_or_else(|err| warn!("{}", err));
 
-        self.notify_gfx(&vendor)
+        self.notify_gfx(&mode)
             .unwrap_or_else(|err| warn!("{}", err));
 
         Ok(msg)
