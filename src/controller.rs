@@ -16,6 +16,7 @@ use crate::{
     config::{create_modprobe_conf, create_xorg_conf},
     error::GfxError,
     gfx_devices::DiscreetGpu,
+    gfx_vendors::GfxVendor,
     pci_device::{rescan_pci_bus, RuntimePowerManagement},
     special::{
         asus_egpu_exists, asus_egpu_set_status, get_asus_gsync_gfx_mode, has_asus_gsync_gfx_mode,
@@ -61,15 +62,15 @@ impl CtrlGraphics {
         Ok(())
     }
 
-    /// Save the selected `Vendor` mode to config
-    fn save_gfx_mode(vendor: GfxMode, config: Arc<Mutex<GfxConfig>>) {
+    /// Save the selected `Mode` to config
+    fn save_gfx_mode(mode: GfxMode, config: Arc<Mutex<GfxConfig>>) {
         if let Ok(mut config) = config.lock() {
-            config.gfx_mode = vendor;
+            config.gfx_mode = mode;
             config.write();
         }
     }
 
-    /// Associated method to get which vendor mode is set
+    /// Associated method to get which mode is set
     pub(crate) fn get_gfx_mode(&self) -> Result<GfxMode, GfxError> {
         if let Ok(config) = self.config.lock() {
             if let Some(mode) = config.gfx_tmp_mode {
@@ -78,6 +79,11 @@ impl CtrlGraphics {
             return Ok(config.gfx_mode);
         }
         Err(GfxError::ParseVendor)
+    }
+
+    /// Associated method to get which vendor the dgpu is from
+    pub(crate) fn get_gfx_vendor(&self) -> GfxVendor {
+        self.dgpu.vendor()
     }
 
     fn do_display_manager_action(action: &str) -> Result<(), GfxError> {

@@ -65,6 +65,10 @@ impl DiscreetGpu {
         &self.functions
     }
 
+    pub fn vendor(&self) -> GfxVendor {
+        self.vendor
+    }
+
     pub fn is_nvidia(&self) -> bool {
         self.vendor == GfxVendor::Nvidia
     }

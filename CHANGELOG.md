@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Add new method: Vendor to get dGPU vendor name
+- Add `-v, --vendor` CLI arg to get dGPU vendor name
+### Breaking
+- Rename Vendor, GetVendor to Mode, GetMode to better reflect their results
+
 ## [3.0.0] - 2022-01-10
 ### Added
 - Keep a changelog

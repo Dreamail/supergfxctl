@@ -36,7 +36,7 @@ impl From<&GfxPower> for &str {
     }
 }
 
-#[derive(Debug, Type, PartialEq, Copy, Clone)]
+#[derive(Debug, Type, PartialEq, Copy, Clone, Deserialize, Serialize)]
 pub enum GfxVendor {
     Nvidia,
     Amd,
@@ -55,14 +55,20 @@ impl From<u16> for GfxVendor {
     }
 }
 
-impl From<&GfxVendor> for &str {
-    fn from(vendor: &GfxVendor) -> Self {
+impl From<GfxVendor> for &str {
+    fn from(vendor: GfxVendor) -> Self {
         match vendor {
             GfxVendor::Nvidia => "Nvidia",
             GfxVendor::Amd => "AMD",
             GfxVendor::Intel => "Intel",
             GfxVendor::Unknown => "Unknown",
         }
+    }
+}
+
+impl From<&GfxVendor> for &str {
+    fn from(vendor: &GfxVendor) -> Self {
+        <&str>::from(*vendor)
     }
 }
 
