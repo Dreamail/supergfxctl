@@ -39,6 +39,8 @@ trait Daemon {
     /// Mode method
     fn mode(&self) -> zbus::Result<GfxMode>;
 
+    fn supported(&self) -> zbus::Result<Vec<GfxMode>>;
+
     /// Vendor method
     fn vendor(&self) -> zbus::Result<String>;
 
@@ -90,6 +92,11 @@ impl<'a> GfxProxy<'a> {
     #[inline]
     pub fn gfx_get_mode(&self) -> Result<GfxMode> {
         self.0.mode()
+    }
+
+    #[inline]
+    pub fn gfx_get_supported_modes(&self) -> Result<Vec<GfxMode>> {
+        self.0.supported()
     }
 
     #[inline]

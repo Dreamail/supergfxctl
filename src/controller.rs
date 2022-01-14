@@ -81,6 +81,28 @@ impl CtrlGraphics {
         Err(GfxError::ParseVendor)
     }
 
+    /// Associated method to get list of supported modes
+    pub(crate) fn get_supported_modes(&self) -> Vec<GfxMode> {
+        let mut list = vec![
+            GfxMode::Integrated,
+            GfxMode::Hybrid,
+            GfxMode::Dedicated,
+            GfxMode::Compute,
+        ];
+
+        if let Ok(config) = self.config.lock() {
+            if config.gfx_vfio_enable {
+                list.push(GfxMode::Vfio);
+            }
+        }
+
+        if asus_egpu_exists() {
+            list.push(GfxMode::Egpu);
+        }
+
+        list
+    }
+
     /// Associated method to get which vendor the dgpu is from
     pub(crate) fn get_gfx_vendor(&self) -> GfxVendor {
         self.dgpu.vendor()

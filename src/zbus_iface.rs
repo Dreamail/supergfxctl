@@ -27,6 +27,11 @@ impl CtrlGraphics {
         })
     }
 
+    /// Get list of supported modes
+    fn supported(&self) -> zbus::fdo::Result<Vec<GfxMode>> {
+        Ok(self.get_supported_modes())
+    }
+
     /// Get the vendor nae of the dGPU
     fn vendor(&self) -> zbus::fdo::Result<String> {
         Ok(<&str>::from(self.get_gfx_vendor()).to_string())
