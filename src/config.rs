@@ -25,6 +25,10 @@ pub struct GfxConfig {
     pub tmp_mode: Option<GfxMode>,
     /// Set if vfio option is enabled. This requires the vfio drivers to be built as modules
     pub vfio_enable: bool,
+    /// Save the VFIO mode so that it is reloaded on boot
+    pub vfio_save: bool,
+    /// Save the Compute mode so that it is reloaded on boot
+    pub compute_save: bool,
     /// Should always reboot?
     pub always_reboot: bool,
 }
@@ -36,6 +40,8 @@ impl GfxConfig {
             mode: GfxMode::Hybrid,
             tmp_mode: None,
             vfio_enable: false,
+            vfio_save: false,
+            compute_save: false,
             always_reboot: false,
         }
     }

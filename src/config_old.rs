@@ -24,6 +24,8 @@ impl From<GfxConfig300> for GfxConfig {
             mode: old.gfx_mode,
             tmp_mode: old.gfx_tmp_mode,
             vfio_enable: old.gfx_vfio_enable,
+            vfio_save: false,
+            compute_save: false,
             always_reboot: false,
         }
     }

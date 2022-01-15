@@ -13,10 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `-v, --version` CLI arg to get supergfxd version
 - Add `-V, --vendor` CLI arg to get dGPU vendor name
 - Add `-s, --supported` CLI arg to get list of supported modes
+- Add new config option: `vfio_save` to reload VFIO on boot
+- Add new config option: `compute_save` to reload compute on boot
+- Add new config option: `always_reboot` reboot to change modes
 ### Changed
 - Adjust startup to check for ASUS eGPU and dGPU enablement if no modes supported
-- If nvidia-drm.modeset=1 is set then save mode and require a reboot by default
-- Add option in `/etc/supergfxd.conf` for `always_reboot`
+- If nvidia-drm.modeset=1 is set then save mode and require a reboot by default\
 - Add extra check for Nvidia dGPU (fixes Flow 13")
 ### Breaking
 - Rename Vendor, GetVendor to Mode, GetMode to better reflect their results

@@ -60,7 +60,7 @@ refresh your session (easiest way is to reboot).
 
 **Switch GPU modes**
 
-* Switching to/from Hybrid and Nvidia modes requires a logout only. (no reboot)
+* Switching to/from Hybrid and Dedicated modes requires a logout only. (no reboot)
 * Switching between integrated/compute/vfio is instant. (no logout or reboot)
 
 | GPU Modes  | Command                            |
@@ -80,6 +80,8 @@ In fedora you can do this with `sudo grub2-mkconfig -o /etc/grub2.cfg` - other d
 similar but with a different config location. It's possible that graphics driver updates
 may change this.
 
+If `nvidia-drm.modeset=1` is used then supergfxd requires a reboot to change modes.
+
 #### supergfxctl
 
 ```
@@ -94,11 +96,11 @@ Optional arguments:
 
 #### Config options
 
-1. `"gfx_mode": "<MODE>",`: MODE can be <hybrid, dedicated, integrated, compute, vfio, egpu>
-2. `"gfx_last_mode": "Dedicated",`: currently unused
-3. `"gfx_managed": true,`: enable or disable graphics switching controller
-4. `"gfx_vfio_enable": false,`: enable vfio switching for dGPU passthrough
-5. `"gfx_save_compute_vfio": false,`: wether or not to save the vfio state (so it sticks between boots)
+1. `mode`: <MODE> : MODE can be <hybrid, dedicated, integrated, compute, vfio, egpu>
+2. `vfio_enable` <bool> : enable vfio switching for dGPU passthrough
+3. `vfio_save` <bool> : save vfio state in mode (so it sticks between boots)
+4. `compute_save` <bool> : save compute state in mode (so it sticks between boots)
+5. `always_reboot` <bool> : always require a reboot to change modes (helps some laptops)
 
 #### Graphics switching notes
 

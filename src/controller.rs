@@ -451,6 +451,11 @@ impl CtrlGraphics {
                     if matches!(mode, GfxMode::Vfio | GfxMode::Compute) {
                         config.tmp_mode = Some(mode);
                     }
+                    if (matches!(mode, GfxMode::Vfio) && config.vfio_save) ||
+                        matches!(mode, GfxMode::Compute) && config.compute_save {
+                        config.mode = mode;
+                        config.write();
+                    }
                 }
             }
         }
