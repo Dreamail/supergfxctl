@@ -91,9 +91,14 @@ impl CtrlGraphics {
         let mut list = vec![
             GfxMode::Integrated,
             GfxMode::Hybrid,
-            GfxMode::Dedicated,
-            GfxMode::Compute,
         ];
+
+        if self.dgpu.is_nvidia() {
+            list.push(
+                GfxMode::Dedicated);
+            list.push(
+                GfxMode::Compute);
+        }
 
         if let Ok(config) = self.config.lock() {
             if config.vfio_enable {
