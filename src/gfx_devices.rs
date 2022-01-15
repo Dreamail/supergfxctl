@@ -5,6 +5,7 @@ use crate::{
     error::GfxError,
     gfx_vendors::{GfxPower, GfxVendor},
     pci_device::{rescan_pci_bus, PciDevice, RuntimePowerManagement},
+    special_asus::is_gpu_enabled,
     NVIDIA_DRIVERS,
 };
 
@@ -20,6 +21,18 @@ pub struct DiscreetGpu {
 
 impl DiscreetGpu {
     pub fn new() -> Result<DiscreetGpu, GfxError> {
+        // first need to check asus specific paths
+        match is_gpu_enabled() {
+            Ok(_) => {}
+            Err(e) => {
+                warn!("{}", e);
+                return Ok(Self {
+                    vendor: GfxVendor::Unknown,
+                    functions: Vec::new(),
+                });
+            }
+        }
+
         info!("Rescanning PCI bus");
         rescan_pci_bus()?;
         let devs = PciDevice::all()?;
@@ -82,7 +95,7 @@ impl DiscreetGpu {
     }
 
     pub fn get_runtime_status(&self) -> Result<GfxPower, GfxError> {
-        self.functions[0].get_pm_status()
+        self.functions[0].get_runtime_status()
     }
 
     pub fn set_runtime_pm(&self, pm: RuntimePowerManagement) -> Result<(), GfxError> {

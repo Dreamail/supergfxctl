@@ -4,6 +4,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
+use crate::config_old::GfxConfig300;
 use crate::error::GfxError;
 use crate::gfx_devices::DiscreetGpu;
 use crate::gfx_vendors::GfxMode;
@@ -16,26 +17,26 @@ use crate::{
 #[derive(Deserialize, Serialize)]
 pub struct GfxConfig {
     #[serde(skip)]
-    config_path: String,
+    pub config_path: String,
     /// The current mode set, also applies on boot
-    pub gfx_mode: GfxMode,
+    pub mode: GfxMode,
     /// Only for informational purposes
     #[serde(skip)]
-    pub gfx_tmp_mode: Option<GfxMode>,
-    /// Set if graphics management is enabled
-    pub gfx_managed: bool,
+    pub tmp_mode: Option<GfxMode>,
     /// Set if vfio option is enabled. This requires the vfio drivers to be built as modules
-    pub gfx_vfio_enable: bool,
+    pub vfio_enable: bool,
+    /// Should always reboot?
+    pub always_reboot: bool,
 }
 
 impl GfxConfig {
     fn new(config_path: String) -> Self {
         Self {
             config_path,
-            gfx_mode: GfxMode::Hybrid,
-            gfx_tmp_mode: None,
-            gfx_managed: true,
-            gfx_vfio_enable: false,
+            mode: GfxMode::Hybrid,
+            tmp_mode: None,
+            vfio_enable: false,
+            always_reboot: false,
         }
     }
 
@@ -54,6 +55,10 @@ impl GfxConfig {
                 config = Self::new(config_path);
             } else if let Ok(data) = serde_json::from_str(&buf) {
                 config = data;
+                config.config_path = config_path;
+            } else if let Ok(data) = serde_json::from_str(&buf) {
+                let old: GfxConfig300 = data;
+                config = old.into();
                 config.config_path = config_path;
             } else {
                 warn!("Could not deserialise {}", config_path);
@@ -79,7 +84,7 @@ impl GfxConfig {
                 let mut x: Self = serde_json::from_str(&buf)
                     .unwrap_or_else(|_| panic!("Could not deserialise {}", self.config_path));
                 // copy over serde skipped values
-                x.gfx_tmp_mode = self.gfx_tmp_mode;
+                x.tmp_mode = self.tmp_mode;
                 *self = x;
             }
         }

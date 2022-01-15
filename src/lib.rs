@@ -1,13 +1,14 @@
-use std::process::Command;
+use std::{fs::OpenOptions, io::Read, path::Path, process::Command};
 
 use gfx_devices::DiscreetGpu;
 use gfx_vendors::GfxMode;
 use log::{error, warn};
 
-use crate::{error::GfxError, special::asus_egpu_exists};
+use crate::{error::GfxError, special_asus::asus_egpu_exists};
 
 /// The configuration for graphics. This should be saved and loaded on boot.
 pub mod config;
+mod config_old;
 /// Control functions for setting graphics.
 pub mod controller;
 /// Error: 404
@@ -16,7 +17,7 @@ pub mod error;
 pub mod gfx_vendors;
 /// Special-case functions for check/read/write of key functions on unique laptops
 /// such as the G-Sync mode available on some ASUS ROG laptops
-pub mod special;
+pub mod special_asus;
 
 /// Defined DBUS Interface for supergfxctl
 pub mod zbus_iface;
@@ -35,6 +36,8 @@ pub const CONFIG_PATH: &str = "/etc/supergfxd.conf";
 pub const DBUS_DEST_NAME: &str = "org.supergfxctl.Daemon";
 /// Interface path name. Should be common across daemon and client.
 pub const DBUS_IFACE_PATH: &str = "/org/supergfxctl/Gfx";
+
+pub const KERNEL_CMDLINE: &str = "/proc/cmdline";
 
 const NVIDIA_DRIVERS: [&str; 4] = ["nvidia_drm", "nvidia_modeset", "nvidia_uvm", "nvidia"];
 
@@ -166,4 +169,23 @@ fn do_driver_action(driver: &str, action: &str) -> Result<(), GfxError> {
         count += 1;
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
+}
+
+pub fn nvidia_drm_modeset() -> Result<bool, GfxError> {
+    let path = Path::new(KERNEL_CMDLINE);
+    let mut file = OpenOptions::new()
+        .read(true)
+        .open(path)
+        .map_err(|err| GfxError::Path(KERNEL_CMDLINE.to_string(), err))?;
+    let mut buf = String::new();
+    file.read_to_string(&mut buf)?;
+
+    // No need to be fast here, just check and go
+    if buf.contains("nvidia-drm.modeset=0") {
+        return Ok(false);
+    } else if buf.contains("nvidia-drm.modeset=1") {
+        return Ok(true);
+    }
+    warn!("nvidia-drm.modeset is no set for kernel cmdline");
+    Ok(false)
 }
