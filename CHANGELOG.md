@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Adjust startup to check for ASUS eGPU and dGPU enablement if no modes supported
 - If nvidia-drm.modeset=1 is set then save mode and require a reboot by default\
 - Add extra check for Nvidia dGPU (fixes Flow 13")
+- Properly check the correct device for power status
 ### Breaking
 - Rename Vendor, GetVendor to Mode, GetMode to better reflect their results
 

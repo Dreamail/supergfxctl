@@ -16,6 +16,7 @@ use std::path::PathBuf;
 #[derive(Clone)]
 pub struct DiscreetGpu {
     vendor: GfxVendor,
+    dgpu_idx: usize,
     functions: Vec<PciDevice>,
 }
 
@@ -28,6 +29,7 @@ impl DiscreetGpu {
                 warn!("{}", e);
                 return Ok(Self {
                     vendor: GfxVendor::Unknown,
+                    dgpu_idx: 0,
                     functions: Vec::new(),
                 });
             }
@@ -63,9 +65,20 @@ impl DiscreetGpu {
                     ) {
                         info!("{} dGPU found", <&str>::from(&vendor));
                         dev.set_runtime_pm(RuntimePowerManagement::Auto)?;
+
+                        let functions = functions(dev);
+                        let mut dgpu_idx = 0;
+                        for (i, f) in functions.iter().enumerate() {
+                            if f.is_dgpu()? {
+                                dgpu_idx = i;
+                                break;
+                            }
+                        }
+                        
                         return Ok(Self {
                             vendor,
-                            functions: functions(dev),
+                            dgpu_idx,
+                            functions,
                         });
                     }
                 }
@@ -94,8 +107,11 @@ impl DiscreetGpu {
         self.vendor == GfxVendor::Intel
     }
 
-    pub fn get_runtime_status(&self) -> Result<GfxPower, GfxError> {
-        self.functions[0].get_runtime_status()
+    pub fn get_dgpu_runtime_status(&self) -> Result<GfxPower, GfxError> {
+        if self.functions.len() > 0 {
+            return self.functions[self.dgpu_idx].get_runtime_status();
+        }
+        Err(GfxError::NotSupported("Could not find dGPU".to_string()))
     }
 
     pub fn set_runtime_pm(&self, pm: RuntimePowerManagement) -> Result<(), GfxError> {
