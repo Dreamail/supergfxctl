@@ -1,4 +1,4 @@
-### Graphics switching
+# supergfxctl
 
 `supergfxd` can switch graphics modes between:
 - `hybrid`, enables dGPU-offload mode
@@ -21,35 +21,35 @@ stray configs blocking nvidia modules from loading in:
 - `/etc/modprobe.d/`
 - `/usr/lib/modprope.d/`
 
-**Install requirements**
+ASUS laptops require a kernel 5.15.x or newer.
+
+## Building
+
+First you need to install the dev packages required.
 
 * Debian/Ubuntu: `sudo apt update && sudo apt install curl git build-essential`
 * Fedora/RHEL: `sudo dnf upgrade && sudo dnf install curl git @development_tools`
 * Arch/Manjaro: `sudo pacman -Syu && sudo pacman -S curl git base-devel`
 
 **Install Rust**
-
-* `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs`
-
-**Activate Rust environment**
-
-* `source ~/.bash_profile`
-* `source ~/.profile`
-* `source ~/.cargo/env`
+```
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs
+source ~/.cargo/env
+```
 
 **Clone supergfxctl repository**
 
-* `git clone https://gitlab.com/asus-linux/supergfxctl.git`
+`git clone https://gitlab.com/asus-linux/supergfxctl.git`
 
 **Install supergfxctl**
+```
+cd supergfxctl
+make && sudo make install
+```
 
-* `cd supergfxctl`
-* `make && sudo make install`
+**Enable and start the service**
 
-**Enable service**
-
-* `sudo systemctl enable supergfxd.service`
-* `sudo systemctl start supergfxd.service`
+`sudo systemctl enable supergfxd.service --now`
 
 **Add user to group**
 
@@ -63,8 +63,8 @@ refresh your session (easiest way is to reboot).
 * Switching to/from Hybrid and Dedicated modes requires a logout only. (no reboot)
 * Switching between integrated/compute/vfio is instant. (no logout or reboot)
 
-| GPU Modes  | Command                            |
-|------------|------------------------------------|
+| GPU Modes  | Command                       |
+|------------|-------------------------------|
 | Integrated | supergfxctl --mode integrated |
 | Dedicated  | supergfxctl --mode dedicated  |
 | Hybrid     | supergfxctl --mode hybrid     |
@@ -87,16 +87,20 @@ If `nvidia-drm.modeset=1` is used then supergfxd requires a reboot to change mod
 ```
 supergfxctl --help
 Optional arguments:
-  -h, --help   print help message
-  -m, --mode   Set graphics mode: <hybrid, dedicated, integrated, compute, vfio, egpu>
-  -g, --get    Get the current mode
-  -p, --pow    Get the current power status
-  -f, --force  Do not ask for confirmation
+  -h, --help       print help message
+  -m, --mode       Set graphics mode
+  -v, --version    Get supergfxd version
+  -g, --get        Get the current mode
+  -s, --supported  Get the supported modes
+  -V, --vendor     Get the dGPU vendor name
+  -p, --pow        Get the current power status
+  -f, --force      Do not ask for confirmation
+  --verbose        Verbose output
 ```
 
 #### Config options
 
-1. `mode`: <MODE> : MODE can be <hybrid, dedicated, integrated, compute, vfio, egpu>
+1. `mode`: <MODE> : any of supported modes, must be capitalised
 2. `vfio_enable` <bool> : enable vfio switching for dGPU passthrough
 3. `vfio_save` <bool> : save vfio state in mode (so it sticks between boots)
 4. `compute_save` <bool> : save compute state in mode (so it sticks between boots)
