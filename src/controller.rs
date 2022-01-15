@@ -20,7 +20,7 @@ use crate::{
     pci_device::{rescan_pci_bus, RuntimePowerManagement},
     special_asus::{
         asus_egpu_exists, asus_egpu_set_status, get_asus_gsync_gfx_mode, has_asus_gsync_gfx_mode,
-        is_gpu_enabled, asus_egpu_enabled,
+        is_gpu_enabled,
     },
     *,
 };
