@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `-s, --supported` CLI arg to get list of supported modes
 ### Changed
 - Adjust startup to check for ASUS eGPU and dGPU enablement if no modes supported
+- If nvidia-drm.modeset=1 is set then save mode and require a reboot by default
+- Add option in `/etc/supergfxd.conf` for `always_reboot`
+- Add extra check for Nvidia dGPU (fixes Flow 13")
 ### Breaking
 - Rename Vendor, GetVendor to Mode, GetMode to better reflect their results
 

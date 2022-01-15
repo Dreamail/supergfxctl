@@ -4,6 +4,8 @@ use std::{
     path::Path,
 };
 
+use log::info;
+
 use crate::{do_driver_action, error::GfxError, pci_device::rescan_pci_bus, NVIDIA_DRIVERS};
 
 static ASUS_DGPU_DISABLE_PATH: &str = "/sys/devices/platform/asus-nb-wmi/dgpu_disable";
@@ -102,11 +104,17 @@ pub(crate) fn is_gpu_enabled() -> Result<bool, GfxError> {
         if asus_dgpu_disabled()? {
             if asus_egpu_exists() {
                 if !asus_egpu_enabled()? {
-                    return Err(GfxError::NotSupported("dGPU and eGPU disabled".to_string()));
+                    return Err(GfxError::NotSupported(
+                        "ASUS dGPU and eGPU disabled".to_string(),
+                    ));
+                } else {
+                    info!("ASUS eGPU enabled");
                 }
             } else {
-                return Err(GfxError::NotSupported("dGPU disabled".to_string()));
+                return Err(GfxError::NotSupported("ASUS dGPU disabled".to_string()));
             }
+        } else {
+            info!("ASUS dGPU enabled");
         }
     }
     Ok(true)

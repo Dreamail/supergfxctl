@@ -4,7 +4,8 @@ use std::{env::args, process::Command, sync::mpsc::channel};
 use supergfxctl::{
     error::GfxError,
     gfx_vendors::{GfxMode, GfxRequiredUserAction},
-    special::{get_asus_gsync_gfx_mode, has_asus_gsync_gfx_mode},
+    nvidia_drm_modeset,
+    special_asus::{get_asus_gsync_gfx_mode, has_asus_gsync_gfx_mode},
     zbus_proxy::GfxProxy,
 };
 
@@ -113,6 +114,9 @@ fn do_gfx(command: CliStart) -> Result<(), GfxError> {
                         );
                     }
                     GfxRequiredUserAction::Logout | GfxRequiredUserAction::Reboot => {
+                        if nvidia_drm_modeset()? {
+                            println!("\x1b[0;31mRebootless mode requires nvidia-drm.modeset=0 to be set on the kernel cmdline\n\x1b[0m");
+                        }
                         println!(
                             "Graphics mode changed to {}. User action required is: {}",
                             <&str>::from(mode),

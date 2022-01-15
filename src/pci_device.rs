@@ -14,7 +14,7 @@ use crate::gfx_vendors::GfxPower;
 
 const PCI_BUS_PATH: &str = "/sys/bus/pci";
 const PM_CONTROL_PATH: &str = "power/control";
-const PM_STATUS_PATH: &str = "power/runtime_status";
+const PM_RUNTIME_STATUS_PATH: &str = "power/runtime_status";
 
 /// Will rescan the device tree, which adds all removed devices back
 pub fn rescan_pci_bus() -> Result<(), GfxError> {
@@ -163,18 +163,33 @@ impl PciDevice {
         Ok(false)
     }
 
+    pub fn lscpi_nvidia_check(&self) -> Result<bool, GfxError> {
+        let s = self.lscpi()?;
+        for pat in ["GeForce"] {
+            if s.contains(pat) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     pub fn is_dgpu(&self) -> Result<bool, GfxError> {
         // The non-boot GPU is the dGPU
         match self.read_file("boot_vga") {
             Ok(n) => {
                 if n.trim() == "0" {
-                    Ok(true)
+                    return Ok(true);
                 } else {
-                    Ok(false)
+                    return Ok(false);
                 }
             }
-            Err(_) => self.lscpi_amd_check(),
+            Err(_) => {
+                if self.lscpi_nvidia_check()? | self.lscpi_amd_check()? {
+                    return Ok(true);
+                }
+            }
         }
+        Ok(false)
     }
 
     pub fn driver(&self) -> io::Result<PciDriver> {
@@ -189,8 +204,8 @@ impl PciDevice {
         self.write_file(PM_CONTROL_PATH, <&'static str>::from(state))
     }
 
-    pub fn get_pm_status(&self) -> Result<GfxPower, GfxError> {
-        match self.read_file(PM_STATUS_PATH) {
+    pub fn get_runtime_status(&self) -> Result<GfxPower, GfxError> {
+        match self.read_file(PM_RUNTIME_STATUS_PATH) {
             Ok(inner) => GfxPower::from_str(inner.as_str()),
             Err(_) => {
                 // if let Some(er) = inner.raw_os_error() {

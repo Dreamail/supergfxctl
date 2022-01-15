@@ -11,7 +11,7 @@ use supergfxctl::{
     controller::CtrlGraphics,
     error::GfxError,
     gfx_vendors::GfxMode,
-    special::{get_asus_gsync_gfx_mode, has_asus_gsync_gfx_mode},
+    special_asus::{get_asus_gsync_gfx_mode, has_asus_gsync_gfx_mode},
     CONFIG_PATH, DBUS_DEST_NAME,
 };
 use zbus::{fdo, Connection, ObjectServer};
@@ -52,26 +52,23 @@ fn start_daemon() -> Result<(), Box<dyn Error>> {
     let mut object_server = ObjectServer::new(&connection);
 
     let config = GfxConfig::load(CONFIG_PATH.into());
-    let enable_gfx_switching = config.gfx_managed;
     let config = Arc::new(Mutex::new(config));
 
     // Graphics switching requires some checks on boot specifically for g-sync capable laptops
-    if enable_gfx_switching {
-        match CtrlGraphics::new(config.clone()) {
-            Ok(mut ctrl) => {
-                // Need to check if a laptop has the dedicated gfx switch
-                if has_asus_gsync_gfx_mode() {
-                    do_asus_laptop_checks(&ctrl, config)?;
-                } else {
-                    ctrl.reload()
-                        .unwrap_or_else(|err| error!("Gfx controller: {}", err));
-                }
+    match CtrlGraphics::new(config.clone()) {
+        Ok(mut ctrl) => {
+            // Need to check if a laptop has the dedicated gfx switch
+            if has_asus_gsync_gfx_mode() {
+                do_asus_laptop_checks(&ctrl, config)?;
+            } else {
+                ctrl.reload()
+                    .unwrap_or_else(|err| error!("Gfx controller: {}", err));
+            }
 
-                ctrl.add_to_server(&mut object_server);
-            }
-            Err(err) => {
-                error!("Gfx control: {}", err);
-            }
+            ctrl.add_to_server(&mut object_server);
+        }
+        Err(err) => {
+            error!("Gfx control: {}", err);
         }
     }
 
@@ -96,7 +93,7 @@ fn do_asus_laptop_checks(
             } else if ded == 0 {
                 info!("Dedicated GFX toggle is off");
                 let devices = ctrl.dgpu();
-                CtrlGraphics::do_mode_setup_tasks(config.gfx_mode, false, &devices)?;
+                CtrlGraphics::do_mode_setup_tasks(config.mode, false, &devices)?;
             }
         }
     }

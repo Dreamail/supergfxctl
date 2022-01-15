@@ -5,7 +5,7 @@ use crate::{
     error::GfxError,
     gfx_vendors::{GfxPower, GfxVendor},
     pci_device::{rescan_pci_bus, PciDevice, RuntimePowerManagement},
-    special::is_gpu_enabled,
+    special_asus::is_gpu_enabled,
     NVIDIA_DRIVERS,
 };
 
@@ -95,7 +95,7 @@ impl DiscreetGpu {
     }
 
     pub fn get_runtime_status(&self) -> Result<GfxPower, GfxError> {
-        self.functions[0].get_pm_status()
+        self.functions[0].get_runtime_status()
     }
 
     pub fn set_runtime_pm(&self, pm: RuntimePowerManagement) -> Result<(), GfxError> {

@@ -18,7 +18,7 @@ use crate::{
     gfx_devices::DiscreetGpu,
     gfx_vendors::GfxVendor,
     pci_device::{rescan_pci_bus, RuntimePowerManagement},
-    special::{
+    special_asus::{
         asus_egpu_exists, asus_egpu_set_status, get_asus_gsync_gfx_mode, has_asus_gsync_gfx_mode,
         is_gpu_enabled,
     },
@@ -52,7 +52,7 @@ impl CtrlGraphics {
     /// Force re-init of all state, including reset of device state
     pub fn reload(&mut self) -> Result<(), GfxError> {
         let vfio_enable = if let Ok(config) = self.config.try_lock() {
-            config.gfx_vfio_enable
+            config.vfio_enable
         } else {
             false
         };
@@ -66,7 +66,7 @@ impl CtrlGraphics {
     /// Save the selected `Mode` to config
     fn save_gfx_mode(mode: GfxMode, config: Arc<Mutex<GfxConfig>>) {
         if let Ok(mut config) = config.lock() {
-            config.gfx_mode = mode;
+            config.mode = mode;
             config.write();
         }
     }
@@ -74,10 +74,10 @@ impl CtrlGraphics {
     /// Associated method to get which mode is set
     pub(crate) fn get_gfx_mode(&self) -> Result<GfxMode, GfxError> {
         if let Ok(config) = self.config.lock() {
-            if let Some(mode) = config.gfx_tmp_mode {
+            if let Some(mode) = config.tmp_mode {
                 return Ok(mode);
             }
-            return Ok(config.gfx_mode);
+            return Ok(config.mode);
         }
         Err(GfxError::ParseVendor)
     }
@@ -96,7 +96,7 @@ impl CtrlGraphics {
         ];
 
         if let Ok(config) = self.config.lock() {
-            if config.gfx_vfio_enable {
+            if config.vfio_enable {
                 list.push(GfxMode::Vfio);
             }
         }
@@ -154,9 +154,23 @@ impl CtrlGraphics {
 
     /// Determine if we need to logout/thread. Integrated<->Vfio mode does not
     /// require logout.
-    fn is_logout_required(&self, vendor: GfxMode) -> GfxRequiredUserAction {
+    fn mode_change_action(&self, vendor: GfxMode) -> GfxRequiredUserAction {
+        if nvidia_drm_modeset()
+            .map_err(|e| {
+                error!("mode_change_action error: {}", e);
+                e
+            })
+            .unwrap_or(false)
+        {
+            return GfxRequiredUserAction::Reboot;
+        }
+
         if let Ok(config) = self.config.lock() {
-            let current = config.gfx_mode;
+            if config.always_reboot {
+                return GfxRequiredUserAction::Reboot;
+            }
+
+            let current = config.mode;
             // Modes that can switch without logout
             if matches!(
                 current,
@@ -331,14 +345,14 @@ impl CtrlGraphics {
         if let Ok(mut config) = config.try_lock() {
             // Since we have a lock, reset tmp to none. This thread should only ever run
             // for Integrated, Hybrid, or Nvidia. Tmp is also only for informational
-            config.gfx_tmp_mode = None;
+            config.tmp_mode = None;
             //
-            let vfio_enable = config.gfx_vfio_enable;
+            let vfio_enable = config.vfio_enable;
 
             // Failsafe. In the event this loop is run with a switch from nvidia in use
             // to vfio or compute do a forced switch to integrated instead to prevent issues
             if matches!(mode, GfxMode::Compute | GfxMode::Vfio)
-                && matches!(config.gfx_mode, GfxMode::Dedicated | GfxMode::Hybrid)
+                && matches!(config.mode, GfxMode::Dedicated | GfxMode::Hybrid)
             {
                 Self::do_mode_setup_tasks(GfxMode::Integrated, vfio_enable, &devices)?;
                 Self::do_display_manager_action("restart")?;
@@ -399,7 +413,7 @@ impl CtrlGraphics {
         }
 
         let vfio_enable = if let Ok(config) = self.config.try_lock() {
-            config.gfx_vfio_enable
+            config.vfio_enable
         } else {
             false
         };
@@ -411,7 +425,7 @@ impl CtrlGraphics {
         mode_support_check(&mode, &self.dgpu)?;
 
         // determine which method we need here
-        let action_required = self.is_logout_required(mode);
+        let action_required = self.mode_change_action(mode);
 
         match action_required {
             GfxRequiredUserAction::Logout => {
@@ -420,8 +434,10 @@ impl CtrlGraphics {
             }
             GfxRequiredUserAction::Reboot => {
                 info!("mode change requires reboot");
-                Self::do_mode_setup_tasks(mode, vfio_enable, &self.dgpu)?;
-                info!("Graphics mode changed to {}", <&str>::from(mode));
+                if let Ok(mut config) = self.config.lock() {
+                    config.mode = mode;
+                    config.write();
+                }
             }
             GfxRequiredUserAction::Integrated => {
                 info!("mode change requires user to be in Integrated mode first");
@@ -431,9 +447,9 @@ impl CtrlGraphics {
                 Self::do_mode_setup_tasks(mode, vfio_enable, &self.dgpu)?;
                 info!("Graphics mode changed to {}", <&str>::from(mode));
                 if let Ok(mut config) = self.config.try_lock() {
-                    config.gfx_tmp_mode = None;
+                    config.tmp_mode = None;
                     if matches!(mode, GfxMode::Vfio | GfxMode::Compute) {
-                        config.gfx_tmp_mode = Some(mode);
+                        config.tmp_mode = Some(mode);
                     }
                 }
             }
