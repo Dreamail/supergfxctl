@@ -17,6 +17,8 @@ struct CliStart {
     help: bool,
     #[options(meta = "", help = "Set graphics mode")]
     mode: Option<GfxMode>,
+    #[options(help = "Get supergfxd version")]
+    version: bool,
     #[options(help = "Get the current mode")]
     get: bool,
     #[options(help = "Get the supported modes")]
@@ -73,6 +75,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn do_gfx(command: CliStart) -> Result<(), GfxError> {
     if command.mode.is_none()
         && !command.get
+        && !command.version
         && !command.supported
         && !command.vendor
         && !command.pow
@@ -96,7 +99,7 @@ fn do_gfx(command: CliStart) -> Result<(), GfxError> {
 
         println!("If anything fails check `journalctl -b -u supergfxd`\n");
 
-        proxy.gfx_write_mode(&mode)?;
+        proxy.write_mode(&mode)?;
 
         loop {
             proxy.next_signal()?;
@@ -124,20 +127,24 @@ fn do_gfx(command: CliStart) -> Result<(), GfxError> {
             std::process::exit(0)
         }
     }
+    if command.version {
+        let res = proxy.get_version()?;
+        println!("supergfxd version: {}", res);
+    }
     if command.get {
-        let res = proxy.gfx_get_mode()?;
+        let res = proxy.get_mode()?;
         println!("Current graphics mode: {}", <&str>::from(res));
     }
     if command.supported {
-        let res = proxy.gfx_get_supported_modes()?;
+        let res = proxy.get_supported_modes()?;
         println!("Supported graphics modes: {:?}", res);
     }
     if command.vendor {
-        let res = proxy.gfx_get_vendor()?;
+        let res = proxy.get_vendor()?;
         println!("dGPU vendor: {}", res);
     }
     if command.pow {
-        let res = proxy.gfx_get_pwr()?;
+        let res = proxy.get_pwr()?;
         println!("Current power status: {}", <&str>::from(&res));
     }
 

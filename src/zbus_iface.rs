@@ -4,13 +4,18 @@ use zvariant::ObjectPath;
 
 use crate::{
     gfx_vendors::{GfxMode, GfxPower, GfxRequiredUserAction},
-    DBUS_IFACE_PATH,
+    DBUS_IFACE_PATH, VERSION,
 };
 
 use super::controller::CtrlGraphics;
 
 #[dbus_interface(name = "org.supergfxctl.Daemon")]
 impl CtrlGraphics {
+    /// Get supergfxd version
+    fn version(&self) -> zbus::fdo::Result<String> {
+        Ok(VERSION.to_string())
+    }
+
     /// Get the current graphics mode:
     /// enum {
     ///     Hybrid,

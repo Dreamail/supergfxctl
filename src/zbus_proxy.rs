@@ -30,6 +30,9 @@ use crate::{
 
 #[dbus_proxy(interface = "org.supergfxctl.Daemon")]
 trait Daemon {
+    /// Version method
+    fn version(&self) -> zbus::Result<String>;
+
     /// Power method
     fn power(&self) -> zbus::Result<GfxPower>;
 
@@ -80,27 +83,32 @@ impl<'a> GfxProxy<'a> {
     }
 
     #[inline]
-    pub fn gfx_get_vendor(&self) -> Result<String> {
+    pub fn get_version(&self) -> Result<String> {
+        self.0.version()
+    }
+
+    #[inline]
+    pub fn get_vendor(&self) -> Result<String> {
         self.0.vendor()
     }
 
     #[inline]
-    pub fn gfx_get_pwr(&self) -> Result<GfxPower> {
+    pub fn get_pwr(&self) -> Result<GfxPower> {
         self.0.power()
     }
 
     #[inline]
-    pub fn gfx_get_mode(&self) -> Result<GfxMode> {
+    pub fn get_mode(&self) -> Result<GfxMode> {
         self.0.mode()
     }
 
     #[inline]
-    pub fn gfx_get_supported_modes(&self) -> Result<Vec<GfxMode>> {
+    pub fn get_supported_modes(&self) -> Result<Vec<GfxMode>> {
         self.0.supported()
     }
 
     #[inline]
-    pub fn gfx_write_mode(&self, mode: &GfxMode) -> Result<GfxRequiredUserAction> {
+    pub fn write_mode(&self, mode: &GfxMode) -> Result<GfxRequiredUserAction> {
         self.0.set_mode(mode)
     }
 
