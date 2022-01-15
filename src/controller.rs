@@ -20,6 +20,7 @@ use crate::{
     pci_device::{rescan_pci_bus, RuntimePowerManagement},
     special::{
         asus_egpu_exists, asus_egpu_set_status, get_asus_gsync_gfx_mode, has_asus_gsync_gfx_mode,
+        is_gpu_enabled,
     },
     *,
 };
@@ -83,6 +84,10 @@ impl CtrlGraphics {
 
     /// Associated method to get list of supported modes
     pub(crate) fn get_supported_modes(&self) -> Vec<GfxMode> {
+        if matches!(self.dgpu.vendor(), GfxVendor::Unknown) {
+            return vec![GfxMode::Integrated];
+        }
+
         let mut list = vec![
             GfxMode::Integrated,
             GfxMode::Hybrid,
@@ -387,6 +392,10 @@ impl CtrlGraphics {
                     return Err(GfxError::AsusGsyncModeActive);
                 }
             }
+        }
+
+        if !self.get_supported_modes().contains(&mode) {
+            is_gpu_enabled()?;
         }
 
         let vfio_enable = if let Ok(config) = self.config.try_lock() {
