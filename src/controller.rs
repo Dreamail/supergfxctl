@@ -88,16 +88,11 @@ impl CtrlGraphics {
             return vec![GfxMode::Integrated];
         }
 
-        let mut list = vec![
-            GfxMode::Integrated,
-            GfxMode::Hybrid,
-        ];
+        let mut list = vec![GfxMode::Integrated, GfxMode::Hybrid];
 
         if self.dgpu.is_nvidia() {
-            list.push(
-                GfxMode::Dedicated);
-            list.push(
-                GfxMode::Compute);
+            list.push(GfxMode::Dedicated);
+            list.push(GfxMode::Compute);
         }
 
         if let Ok(config) = self.config.lock() {
@@ -266,7 +261,7 @@ impl CtrlGraphics {
             GfxMode::Egpu => {
                 if !asus_egpu_exists() {
                     warn!("eGPU mode attempted while unsupported by this machine");
-                    return Ok(());    
+                    return Ok(());
                 }
 
                 if vfio_enable {
@@ -461,8 +456,9 @@ impl CtrlGraphics {
                     if matches!(mode, GfxMode::Vfio | GfxMode::Compute) {
                         config.tmp_mode = Some(mode);
                     }
-                    if (matches!(mode, GfxMode::Vfio) && config.vfio_save) ||
-                        matches!(mode, GfxMode::Compute) && config.compute_save {
+                    if (matches!(mode, GfxMode::Vfio) && config.vfio_save)
+                        || matches!(mode, GfxMode::Compute) && config.compute_save
+                    {
                         config.mode = mode;
                         config.write();
                     }

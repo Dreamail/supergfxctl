@@ -30,8 +30,8 @@ struct CliStart {
     pow: bool,
     #[options(help = "Do not ask for confirmation")]
     force: bool,
-    #[options(help = "Verbose output")]
-    verbose: bool,
+    #[options(help = "Silent output")]
+    quiet: bool,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -40,32 +40,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     match CliStart::parse_args_default(&args) {
         Ok(command) => {
             do_gfx(command).map_err(|err|{
-                if command.verbose {
-                    eprintln!("Graphics mode change error.");
-                    if !check_systemd_unit_enabled("supergfxd") {
-                        eprintln!("\x1b[0;31msupergfxd is not enabled, enable it with `systemctl enable supergfxd\x1b[0m");
-                    } else if !check_systemd_unit_active("supergfxd") {
-                        eprintln!("\x1b[0;31msupergfxd is not running, start it with `systemctl start supergfxd\x1b[0m");
-                    } else {
-                        match &err {
-                            GfxError::Zbus(err) => {
-                                match err {
-                                    zbus::Error::MethodError(_,s,_) => {
-                                        if let Some(text) = s {
-                                            eprintln!("\x1b[0;31m{}\x1b[0m", text);
-                                        } else {
-                                            eprintln!("{}", err);
-                                        }
+                eprintln!("Graphics mode change error.");
+                if !check_systemd_unit_enabled("supergfxd") {
+                    eprintln!("\x1b[0;31msupergfxd is not enabled, enable it with `systemctl enable supergfxd\x1b[0m");
+                } else if !check_systemd_unit_active("supergfxd") {
+                    eprintln!("\x1b[0;31msupergfxd is not running, start it with `systemctl start supergfxd\x1b[0m");
+                } else {
+                    eprintln!("Please check `journalctl -b -u supergfxd`, and `systemctl status supergfxd`");
+                    match &err {
+                        GfxError::Zbus(err) => {
+                            match err {
+                                zbus::Error::MethodError(_,s,_) => {
+                                    if let Some(text) = s {
+                                        eprintln!("\x1b[0;31m{}\x1b[0m", text);
+                                        std::process::exit(1);
                                     }
-                                    _ => eprintln!("{}", err),
                                 }
+                                _ => {},
                             }
-                            _ => eprintln!("{}", err),
                         }
-                        eprintln!("Please check `journalctl -b -u supergfxd`, and `systemctl status supergfxd`");
+                        _ => {},
                     }
-                    eprintln!("Error: {}", err);
                 }
+                eprintln!("Error: {}", err);
                 std::process::exit(1);
             }).ok();
         }
@@ -86,7 +83,6 @@ fn do_gfx(command: CliStart) -> Result<(), GfxError> {
         && !command.vendor
         && !command.pow
         && !command.force
-        && !command.verbose
         || command.help
     {
         println!("{}", command.self_usage());
@@ -100,14 +96,8 @@ fn do_gfx(command: CliStart) -> Result<(), GfxError> {
 
     if let Some(mode) = command.mode {
         if has_asus_gsync_gfx_mode() && get_asus_gsync_gfx_mode()? == 1 {
-            if command.verbose {
-                println!("You can not change modes until you turn dedicated/G-Sync off and reboot");
-            }
+            eprintln!("You can not change modes until you turn dedicated/G-Sync off and reboot");
             std::process::exit(1);
-        }
-
-        if command.verbose {
-            println!("If anything fails check `journalctl -b -u supergfxd`\n");
         }
 
         proxy.write_mode(&mode)?;
@@ -118,30 +108,24 @@ fn do_gfx(command: CliStart) -> Result<(), GfxError> {
             if let Ok(res) = rx.try_recv() {
                 match res {
                     GfxRequiredUserAction::Integrated => {
-                        if command.verbose {
-                            println!(
-                                "You must change to Integrated before you can change to {}",
-                                <&str>::from(mode)
-                            );
-                        }
+                        eprintln!(
+                            "You must change to Integrated before you can change to {}",
+                            <&str>::from(mode)
+                        );
                         std::process::exit(1);
                     }
                     GfxRequiredUserAction::Logout | GfxRequiredUserAction::Reboot => {
-                        if command.verbose {
-                            if nvidia_drm_modeset()? {
-                                println!("\x1b[0;31mRebootless mode requires nvidia-drm.modeset=0 to be set on the kernel cmdline\n\x1b[0m");
-                            }
-                            println!(
-                                "Graphics mode changed to {}. User action required is: {}",
-                                <&str>::from(mode),
-                                <&str>::from(&res)
-                            );
+                        if nvidia_drm_modeset()? {
+                            println!("\x1b[0;31mRebootless mode requires nvidia-drm.modeset=0 to be set on the kernel cmdline\n\x1b[0m");
                         }
+                        println!(
+                            "Graphics mode changed to {}. Required user action is: {}",
+                            <&str>::from(mode),
+                            <&str>::from(&res)
+                        );
                     }
                     GfxRequiredUserAction::None => {
-                        if command.verbose {
-                            println!("Graphics mode changed to {}", <&str>::from(mode));
-                        }
+                        println!("Graphics mode changed to {}", <&str>::from(mode));
                     }
                 }
             }

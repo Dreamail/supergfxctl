@@ -74,7 +74,7 @@ impl DiscreetGpu {
                                 break;
                             }
                         }
-                        
+
                         return Ok(Self {
                             vendor,
                             dgpu_idx,
