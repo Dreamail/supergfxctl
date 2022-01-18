@@ -92,7 +92,7 @@ impl FromStr for GfxMode {
             "integrated" => Ok(GfxMode::Integrated),
             "compute" => Ok(GfxMode::Compute),
             "vfio" => Ok(GfxMode::Vfio),
-            "epgu" => Ok(GfxMode::Egpu),
+            "egpu" => Ok(GfxMode::Egpu),
             _ => Err(GfxError::ParseVendor),
         }
     }
