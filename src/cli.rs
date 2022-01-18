@@ -30,8 +30,6 @@ struct CliStart {
     pow: bool,
     #[options(help = "Do not ask for confirmation")]
     force: bool,
-    #[options(help = "Silent output")]
-    quiet: bool,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

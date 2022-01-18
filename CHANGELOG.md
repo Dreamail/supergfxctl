@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.0] - 2022-01-18
 ### Added
 - Add new dbus method: `Version` to get supergfxd version
 - Add new dbus method: `Vendor` to get dGPU vendor name
