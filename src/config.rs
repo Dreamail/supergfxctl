@@ -10,11 +10,11 @@ use crate::gfx_devices::DiscreetGpu;
 use crate::gfx_vendors::GfxMode;
 use crate::{
     MODPROBE_INTEGRATED, MODPROBE_NVIDIA_BASE, MODPROBE_NVIDIA_DRM_MODESET, MODPROBE_PATH,
-    MODPROBE_VFIO, PRIMARY_GPU_END, PRIMARY_GPU_NVIDIA, PRIMARY_GPU_NVIDIA_BEGIN, XORG_FILE,
-    XORG_PATH,
+    MODPROBE_VFIO, PRIMARY_GPU_AMD_BEGIN, PRIMARY_GPU_END, PRIMARY_GPU_NVIDIA_BEGIN,
+    PRIMARY_IS_DGPU, XORG_FILE, XORG_PATH, PRIMARY_IS_EGPU,
 };
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct GfxConfig {
     #[serde(skip)]
     pub config_path: String,
@@ -67,8 +67,8 @@ impl GfxConfig {
                 config = old.into();
                 config.config_path = config_path;
             } else {
-                warn!("Could not deserialise {}", config_path);
-                panic!("Please remove {} then restart service", config_path);
+                warn!("Could not deserialise {}, recreating", config_path);
+                config = GfxConfig::new(config_path);
             }
         } else {
             config = Self::new(config_path)
@@ -168,16 +168,33 @@ pub(crate) fn create_xorg_conf(mode: GfxMode, gfx: &DiscreetGpu) -> Result<(), G
         if mode == GfxMode::Dedicated {
             [
                 PRIMARY_GPU_NVIDIA_BEGIN,
-                PRIMARY_GPU_NVIDIA,
+                PRIMARY_IS_DGPU,
+                if matches!(mode, GfxMode::Egpu) {
+                    PRIMARY_IS_EGPU
+                } else {
+                    &[]
+                },
                 PRIMARY_GPU_END,
             ]
             .concat()
         } else {
-            [PRIMARY_GPU_NVIDIA_BEGIN, PRIMARY_GPU_END].concat()
+            [
+                PRIMARY_GPU_NVIDIA_BEGIN,
+                if matches!(mode, GfxMode::Egpu) {
+                    PRIMARY_IS_EGPU
+                } else {
+                    &[]
+                },
+                PRIMARY_GPU_END,
+            ]
+            .concat()
         }
     } else if gfx.is_amd() {
-        warn!("No valid AMD dGPU xorg config available yet");
-        return Ok(());
+        if mode == GfxMode::Dedicated {
+            [PRIMARY_GPU_AMD_BEGIN, PRIMARY_IS_DGPU, PRIMARY_GPU_END].concat()
+        } else {
+            [PRIMARY_GPU_AMD_BEGIN, PRIMARY_GPU_END].concat()
+        }
     } else {
         warn!("No valid xorg config for device");
         return Ok(());

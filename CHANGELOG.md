@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Fix version upgrade of config
+- Recreate the config if parsing fails
+- Only write the mode change to config file, don't update live config
+### Added
+- AMD dedicated + hybrid config for xorg
+- "AllowExternalGpus" added to xorg for Nvidia Egpu mode
+
 ## [4.0.0] - 2022-01-18
 ### Added
 - Add new dbus method: `Version` to get supergfxd version

@@ -439,7 +439,8 @@ impl CtrlGraphics {
             }
             GfxRequiredUserAction::Reboot => {
                 info!("mode change requires reboot");
-                if let Ok(mut config) = self.config.lock() {
+                if let Ok(config) = self.config.lock() {
+                    let mut config = (*config).clone();
                     config.mode = mode;
                     config.write();
                 }
