@@ -88,10 +88,9 @@ impl CtrlGraphics {
             return vec![GfxMode::Integrated];
         }
 
-        let mut list = vec![GfxMode::Integrated, GfxMode::Hybrid];
+        let mut list = vec![GfxMode::Integrated, GfxMode::Hybrid, GfxMode::Dedicated];
 
         if self.dgpu.is_nvidia() {
-            list.push(GfxMode::Dedicated);
             list.push(GfxMode::Compute);
         }
 
