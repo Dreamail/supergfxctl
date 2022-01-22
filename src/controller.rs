@@ -209,15 +209,8 @@ impl CtrlGraphics {
         // Rescan before doing remove or add drivers
         rescan_pci_bus()?;
         devices.set_runtime_pm(RuntimePowerManagement::Auto)?;
-        // Only these modes should have xorg config
-        if matches!(
-            mode,
-            GfxMode::Dedicated | GfxMode::Hybrid | GfxMode::Integrated
-        ) {
-            create_xorg_conf(mode, devices)?;
-        }
 
-        // Write different modprobe to enable boot control to work
+        create_xorg_conf(mode, devices)?;
         create_modprobe_conf(mode, devices)?;
 
         match mode {

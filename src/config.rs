@@ -164,6 +164,10 @@ pub(crate) fn create_modprobe_conf(vendor: GfxMode, devices: &DiscreetGpu) -> Re
 
 /// Write the appropriate xorg config for the chosen mode
 pub(crate) fn create_xorg_conf(mode: GfxMode, gfx: &DiscreetGpu) -> Result<(), GfxError> {
+    // Don't want these modes hooked by xorg
+    if matches!(mode, GfxMode::Compute | GfxMode::Vfio) {
+        return Ok(());
+    }
     let text = if gfx.is_nvidia() {
         if mode == GfxMode::Dedicated {
             [

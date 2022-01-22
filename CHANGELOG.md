@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.2] - 2022-01-22
+### Changed
+- Adjust how xorg config is created so that EGPU mode uses it also
+
 ## [4.0.1] - 2022-01-20
 ### Changed
 - Fix version upgrade of config
