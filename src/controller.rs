@@ -28,11 +28,9 @@ use crate::{
 use super::config::GfxConfig;
 use super::gfx_vendors::{GfxMode, GfxRequiredUserAction};
 
-const THREAD_TIMEOUT_MSG: &str = "thread time exceeded 3 minutes, exiting";
-
 pub struct CtrlGraphics {
-    dgpu: DiscreetGpu,
-    config: Arc<Mutex<GfxConfig>>,
+    pub(crate) dgpu: DiscreetGpu,
+    pub(crate) config: Arc<Mutex<GfxConfig>>,
     thread_exit: Arc<AtomicBool>,
 }
 
@@ -51,15 +49,25 @@ impl CtrlGraphics {
 
     /// Force re-init of all state, including reset of device state
     pub fn reload(&mut self) -> Result<(), GfxError> {
+        let cmdline_mode = get_kernel_cmdline_mode()?
+            .map(|mode| {
+                warn!(
+                    "Graphic mode {:?} set on kernel cmdline - this mode is temporary",
+                    mode
+                );
+                mode
+            })
+            .unwrap_or(self.get_gfx_mode()?);
+
         let vfio_enable = if let Ok(config) = self.config.try_lock() {
             config.vfio_enable
         } else {
             false
         };
 
-        Self::do_mode_setup_tasks(self.get_gfx_mode()?, vfio_enable, &self.dgpu)?;
+        Self::do_mode_setup_tasks(cmdline_mode, vfio_enable, &self.dgpu)?;
 
-        info!("Reloaded gfx mode: {:?}", self.get_gfx_mode()?);
+        info!("Reloaded gfx mode: {:?}", cmdline_mode);
         Ok(())
     }
 
@@ -80,6 +88,26 @@ impl CtrlGraphics {
             return Ok(config.mode);
         }
         Err(GfxError::ParseVendor)
+    }
+
+    ///
+    pub(crate) fn get_pending_mode(&self) -> GfxMode {
+        if let Ok(config) = self.config.lock() {
+            if let Some(mode) = config.pending_mode {
+                return mode;
+            }
+        }
+        GfxMode::None
+    }
+
+    ///
+    pub(crate) fn get_pending_user_action(&self) -> GfxRequiredUserAction {
+        if let Ok(config) = self.config.lock() {
+            if let Some(action) = config.pending_action {
+                return action;
+            }
+        }
+        GfxRequiredUserAction::None
     }
 
     /// Associated method to get list of supported modes
@@ -266,6 +294,7 @@ impl CtrlGraphics {
 
                 devices.do_driver_action("modprobe")?;
             }
+            GfxMode::None => {}
         }
         Ok(())
     }
@@ -300,6 +329,8 @@ impl CtrlGraphics {
         config: Arc<Mutex<GfxConfig>>,
     ) -> Result<String, GfxError> {
         info!("display-manager thread started");
+        let no_logind;
+        let logout_timeout_s;
 
         const SLEEP_PERIOD: Duration = Duration::from_millis(100);
         let start_time = Instant::now();
@@ -309,10 +340,25 @@ impl CtrlGraphics {
         let mut sessions = manager.list_sessions()?;
 
         loop {
+            // Don't wait on logind stuff if set
+            if let Ok(config) = config.try_lock() {
+                no_logind = config.no_logind;
+                logout_timeout_s = config.logout_timeout_s;
+                info!("logout_timeout_s = {}", logout_timeout_s);
+
+                if no_logind {
+                    info!("no_logind option is set");
+                }
+                break;
+            }
+        }
+
+        while !no_logind {
             if thread_stop.load(Ordering::SeqCst) {
                 info!("Thread forced to exit");
                 return Ok("Exited".to_string());
             }
+
             let tmp = manager.list_sessions()?;
             if !tmp.iter().eq(&sessions) {
                 info!("GFX thread: Sessions list changed");
@@ -324,18 +370,23 @@ impl CtrlGraphics {
             }
 
             // exit if 3 minutes pass
-            if Instant::now().duration_since(start_time).as_secs() > 180 {
-                warn!("{}", THREAD_TIMEOUT_MSG);
-                return Err(GfxError::DisplayManagerTimeout(THREAD_TIMEOUT_MSG.into()));
+            if logout_timeout_s != 0
+                && Instant::now().duration_since(start_time).as_secs() > logout_timeout_s
+            {
+                let detail = format!("Time ({} seconds) for logout exceeded", logout_timeout_s);
+                warn!("{}", detail);
+                return Err(GfxError::DisplayManagerTimeout(detail));
             }
 
             // Don't spin at max speed
             sleep(SLEEP_PERIOD);
         }
 
-        info!("GFX thread: all graphical user sessions ended, continuing");
-        Self::do_display_manager_action("stop")?;
-        Self::wait_display_manager_state("inactive")?;
+        if !no_logind {
+            info!("GFX thread: all graphical user sessions ended, continuing");
+            Self::do_display_manager_action("stop")?;
+            Self::wait_display_manager_state("inactive")?;
+        }
 
         let mut mode_to_save = mode;
         // Need to change to integrated before we can change to vfio or compute
@@ -352,11 +403,15 @@ impl CtrlGraphics {
                 && matches!(config.mode, GfxMode::Dedicated | GfxMode::Hybrid)
             {
                 Self::do_mode_setup_tasks(GfxMode::Integrated, vfio_enable, &devices)?;
-                Self::do_display_manager_action("restart")?;
+                if !no_logind {
+                    Self::do_display_manager_action("restart")?;
+                }
                 mode_to_save = GfxMode::Integrated;
             } else {
                 Self::do_mode_setup_tasks(mode, vfio_enable, &devices)?;
-                Self::do_display_manager_action("restart")?;
+                if !no_logind {
+                    Self::do_display_manager_action("restart")?;
+                }
             }
         }
 
@@ -383,11 +438,21 @@ impl CtrlGraphics {
         let rx = self.thread_exit.clone();
 
         std::thread::spawn(move || {
-            Self::mode_change_loop(mode, devices, rx, config)
+            // A thread spawn typically means we're doing a rebootless change, so track pending mode
+            if let Ok(mut config) = config.try_lock() {
+                config.pending_mode = Some(mode);
+            }
+
+            Self::mode_change_loop(mode, devices, rx, config.clone())
                 .map_err(|err| {
                     error!("{}", err);
                 })
                 .ok();
+
+            if let Ok(mut config) = config.try_lock() {
+                config.pending_mode = None;
+                config.pending_action = None;
+            }
         });
     }
 
@@ -427,12 +492,28 @@ impl CtrlGraphics {
         match action_required {
             GfxRequiredUserAction::Logout => {
                 info!("mode change requires a logout to complete");
+                if let Ok(mut config) = self.config.lock() {
+                    config.pending_action = Some(action_required);
+                }
                 self.setup_mode_change_thread(mode);
             }
             GfxRequiredUserAction::Reboot => {
                 info!("mode change requires reboot");
-                if let Ok(config) = self.config.lock() {
-                    let mut config = (*config).clone();
+                if let Ok(mut config) = self.config.lock() {
+                    if let Some(tmp) = config.tmp_mode {
+                        // If they are the same canel the reboot
+                        if tmp == config.mode {
+                            config.tmp_mode = None;
+                            config.pending_action = None;
+                        } else {
+                            config.tmp_mode = Some(config.mode);
+                            config.pending_action = Some(action_required);
+                        }
+                    } else {
+                        config.tmp_mode = Some(config.mode);
+                        config.pending_action = Some(action_required);
+                    }
+
                     config.mode = mode;
                     config.write();
                 }
@@ -440,20 +521,23 @@ impl CtrlGraphics {
             GfxRequiredUserAction::Integrated => {
                 info!("mode change requires user to be in Integrated mode first");
             }
+            // Generally None for vfio, compute, integrated only
             GfxRequiredUserAction::None => {
                 info!("mode change does not require logout");
                 Self::do_mode_setup_tasks(mode, vfio_enable, &self.dgpu)?;
                 info!("Graphics mode changed to {}", <&str>::from(mode));
                 if let Ok(mut config) = self.config.try_lock() {
                     config.tmp_mode = None;
-                    if matches!(mode, GfxMode::Vfio | GfxMode::Compute) {
-                        config.tmp_mode = Some(mode);
-                    }
+                    config.pending_action = None;
+                    config.pending_mode = None;
+
                     if (matches!(mode, GfxMode::Vfio) && config.vfio_save)
                         || matches!(mode, GfxMode::Compute) && config.compute_save
                     {
                         config.mode = mode;
                         config.write();
+                    } else if matches!(mode, GfxMode::Vfio | GfxMode::Compute) {
+                        config.tmp_mode = Some(mode);
                     }
                 }
             }

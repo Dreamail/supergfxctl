@@ -39,6 +39,12 @@ trait Daemon {
     /// SetMode method
     fn set_mode(&self, mode: &GfxMode) -> zbus::Result<GfxRequiredUserAction>;
 
+    /// Get the `String` name of the pending mode change if any
+    fn pending_mode(&self) -> zbus::Result<GfxMode>;
+
+    /// Get the `String` name of the pending required user action if any
+    fn pending_user_action(&self) -> zbus::Result<GfxRequiredUserAction>;
+
     /// Mode method
     fn mode(&self) -> zbus::Result<GfxMode>;
 
@@ -105,6 +111,16 @@ impl<'a> GfxProxy<'a> {
     #[inline]
     pub fn get_supported_modes(&self) -> Result<Vec<GfxMode>> {
         self.0.supported()
+    }
+
+    #[inline]
+    pub fn pending_mode(&self) -> Result<GfxMode> {
+        self.0.pending_mode()
+    }
+
+    #[inline]
+    pub fn pending_user_action(&self) -> Result<GfxRequiredUserAction> {
+        self.0.pending_user_action()
     }
 
     #[inline]

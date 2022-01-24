@@ -80,6 +80,7 @@ pub enum GfxMode {
     Compute,
     Vfio,
     Egpu,
+    None,
 }
 
 impl FromStr for GfxMode {
@@ -98,8 +99,8 @@ impl FromStr for GfxMode {
     }
 }
 
-impl From<&GfxMode> for &str {
-    fn from(gfx: &GfxMode) -> &'static str {
+impl From<GfxMode> for &str {
+    fn from(gfx: GfxMode) -> &'static str {
         match gfx {
             GfxMode::Hybrid => "hybrid",
             GfxMode::Dedicated => "dedicated",
@@ -107,13 +108,14 @@ impl From<&GfxMode> for &str {
             GfxMode::Compute => "compute",
             GfxMode::Vfio => "vfio",
             GfxMode::Egpu => "egpu",
+            GfxMode::None => "none",
         }
     }
 }
 
-impl From<GfxMode> for &str {
-    fn from(gfx: GfxMode) -> &'static str {
-        (&gfx).into()
+impl From<&GfxMode> for &str {
+    fn from(gfx: &GfxMode) -> &'static str {
+        (*gfx).into()
     }
 }
 
@@ -125,13 +127,19 @@ pub enum GfxRequiredUserAction {
     None,
 }
 
-impl From<&GfxRequiredUserAction> for &str {
-    fn from(gfx: &GfxRequiredUserAction) -> &'static str {
+impl From<GfxRequiredUserAction> for &str {
+    fn from(gfx: GfxRequiredUserAction) -> &'static str {
         match gfx {
             GfxRequiredUserAction::Logout => "logout",
             GfxRequiredUserAction::Reboot => "reboot",
             GfxRequiredUserAction::Integrated => "switch to integrated first",
-            GfxRequiredUserAction::None => "no action",
+            GfxRequiredUserAction::None => "none",
         }
+    }
+}
+
+impl From<&GfxRequiredUserAction> for &str {
+    fn from(gfx: &GfxRequiredUserAction) -> &'static str {
+        (*gfx).into()
     }
 }

@@ -62,6 +62,7 @@ refresh your session (easiest way is to reboot).
 
 * Switching to/from Hybrid and Dedicated modes requires a logout only. (no reboot)
 * Switching between integrated/compute/vfio is instant. (no logout or reboot)
+* Mode can be set via kernel cmdline with `supergfxd.mode=`. Capitalisation does not matter.
 
 | GPU Modes  | Command                       |
 |------------|-------------------------------|
@@ -87,15 +88,15 @@ If `nvidia-drm.modeset=1` is used then supergfxd requires a reboot to change mod
 ```
 supergfxctl --help
 Optional arguments:
-  -h, --help       print help message
-  -m, --mode       Set graphics mode
-  -v, --version    Get supergfxd version
-  -g, --get        Get the current mode
-  -s, --supported  Get the supported modes
-  -V, --vendor     Get the dGPU vendor name
-  -p, --pow        Get the current power status
-  -f, --force      Do not ask for confirmation
-  --verbose        Verbose output
+  -h, --help         print help message
+  -m, --mode         Set graphics mode
+  -v, --version      Get supergfxd version
+  -g, --get          Get the current mode
+  -s, --supported    Get the supported modes
+  -V, --vendor       Get the dGPU vendor name
+  -S, --status       Get the current power status
+  -p, --pend-action  Get the pending user action if any
+  -P, --pend-mode    Get the pending mode change if any
 ```
 
 #### Config options
@@ -105,6 +106,8 @@ Optional arguments:
 3. `vfio_save` <bool> : save vfio state in mode (so it sticks between boots)
 4. `compute_save` <bool> : save compute state in mode (so it sticks between boots)
 5. `always_reboot` <bool> : always require a reboot to change modes (helps some laptops)
+6. `no_logind` <bool> : don't use logind to see if all sessions are logged out and therefore safe to change mode. This will be useful for people not using a login manager. Ignored if `always_reboot` is set.
+7. `logout_timeout_s` <u64> : the timeout in seconds to wait for all user graphical sessions to end. Default is 3 minutes, 0 = infinite. Ignored if `no_logind` or `always_reboot` is set.
 
 #### Graphics switching notes
 
