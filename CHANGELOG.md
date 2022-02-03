@@ -6,6 +6,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.3] - 2022-02-04
+### Added
+- Add config option `no_logind`: Don't use logind to see if all sessions are
+  logged out and therefore safe to change mode. This will be useful for people not
+  using a login manager, however it is not guaranteed to work unless all graphical
+  sessions are ended and nothing is hooking the drivers. Ignored if `always_reboot`
+  is set.
+- Add config option `logout_timeout_s`: The timeout in seconds to wait for all user
+  graphical sessions to end. Default is 3 minutes, 0 = infinite. Ignored if
+  `no_logind` or `always_reboot` is set.
+- Add new dbus method: `PendingMode`, to check if a mode change is required
+- Add new dbus method: `PendingUserAction`, to check if the user is required to perform an action
+- Add new dbus method: `Config`, to get the current base config
+- Add new dbus method: `SetConfig`, to set the base config
+- Add `-p, --pend-action` CLI arg to get the pending user action if any
+- Add `-P, --pend-mode` CLI arg to get the pending mode change if any`
+- Add ability to read `supergfxd.mode=` from kernel cmdline on startup and set the mode appropriately
+### Removed
+- CLI option `--force` was unused, it is now removed.
+
 ## [4.0.2] - 2022-01-22
 ### Changed
 - Adjust how xorg config is created so that EGPU mode uses it also

@@ -1,8 +1,8 @@
-use std::{fs::OpenOptions, io::Read, path::Path, process::Command};
+use std::{fs::OpenOptions, io::Read, path::Path, process::Command, str::FromStr};
 
 use gfx_devices::DiscreetGpu;
 use gfx_vendors::GfxMode;
-use log::{error, warn};
+use log::{error, info, warn};
 
 use crate::{error::GfxError, special_asus::asus_egpu_exists};
 
@@ -198,4 +198,26 @@ pub fn nvidia_drm_modeset() -> Result<bool, GfxError> {
     }
     warn!("nvidia-drm.modeset is no set for kernel cmdline");
     Ok(false)
+}
+
+pub fn get_kernel_cmdline_mode() -> Result<Option<GfxMode>, GfxError> {
+    let path = Path::new(KERNEL_CMDLINE);
+    let mut file = OpenOptions::new()
+        .read(true)
+        .open(path)
+        .map_err(|err| GfxError::Path(KERNEL_CMDLINE.to_string(), err))?;
+    let mut buf = String::new();
+    file.read_to_string(&mut buf)?;
+
+    // No need to be fast here, just check and go
+    for cmd in buf.split(' ') {
+        if cmd.contains("supergfxd.mode=") {
+            let mode = cmd.trim_start_matches("supergfxd.mode=");
+            let mode = GfxMode::from_str(mode)?;
+            return Ok(Some(mode));
+        }
+    }
+
+    info!("supergfxd.mode not set, ignoring");
+    Ok(None)
 }

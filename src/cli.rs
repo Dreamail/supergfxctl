@@ -27,9 +27,11 @@ struct CliStart {
     #[options(help = "Get the dGPU vendor name")]
     vendor: bool,
     #[options(help = "Get the current power status")]
-    pow: bool,
-    #[options(help = "Do not ask for confirmation")]
-    force: bool,
+    status: bool,
+    #[options(help = "Get the pending user action if any")]
+    pend_action: bool,
+    #[options(help = "Get the pending mode change if any")]
+    pend_mode: bool,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -79,8 +81,9 @@ fn do_gfx(command: CliStart) -> Result<(), GfxError> {
         && !command.version
         && !command.supported
         && !command.vendor
-        && !command.pow
-        && !command.force
+        && !command.status
+        && !command.pend_action
+        && !command.pend_mode
         || command.help
     {
         println!("{}", command.self_usage());
@@ -146,8 +149,16 @@ fn do_gfx(command: CliStart) -> Result<(), GfxError> {
         let res = proxy.get_vendor()?;
         println!("{}", res);
     }
-    if command.pow {
+    if command.status {
         let res = proxy.get_pwr()?;
+        println!("{}", <&str>::from(&res));
+    }
+    if command.pend_action {
+        let res = proxy.pending_user_action()?;
+        println!("{}", <&str>::from(&res));
+    }
+    if command.pend_mode {
+        let res = proxy.pending_mode()?;
         println!("{}", <&str>::from(&res));
     }
 

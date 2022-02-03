@@ -3,16 +3,43 @@ use serde_derive::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use zvariant_derive::Type;
 
 use crate::config_old::GfxConfig300;
 use crate::error::GfxError;
 use crate::gfx_devices::DiscreetGpu;
-use crate::gfx_vendors::GfxMode;
+use crate::gfx_vendors::{GfxMode, GfxRequiredUserAction};
 use crate::{
     MODPROBE_INTEGRATED, MODPROBE_NVIDIA_BASE, MODPROBE_NVIDIA_DRM_MODESET, MODPROBE_PATH,
     MODPROBE_VFIO, PRIMARY_GPU_AMD_BEGIN, PRIMARY_GPU_END, PRIMARY_GPU_NVIDIA_BEGIN,
-    PRIMARY_IS_DGPU, XORG_FILE, XORG_PATH, PRIMARY_IS_EGPU,
+    PRIMARY_IS_DGPU, PRIMARY_IS_EGPU, XORG_FILE, XORG_PATH,
 };
+
+/// Cleaned config for passing over dbus only
+#[derive(Debug, Clone, Deserialize, Serialize, Type)]
+pub struct GfxConfigDbus {
+    pub mode: GfxMode,
+    pub vfio_enable: bool,
+    pub vfio_save: bool,
+    pub compute_save: bool,
+    pub always_reboot: bool,
+    pub no_logind: bool,
+    pub logout_timeout_s: u64,
+}
+
+impl From<&GfxConfig> for GfxConfigDbus {
+    fn from(c: &GfxConfig) -> Self {
+        Self {
+            mode: c.mode,
+            vfio_enable: c.vfio_enable,
+            vfio_save: c.vfio_save,
+            compute_save: c.compute_save,
+            always_reboot: c.always_reboot,
+            no_logind: c.no_logind,
+            logout_timeout_s: c.logout_timeout_s,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct GfxConfig {
@@ -20,9 +47,15 @@ pub struct GfxConfig {
     pub config_path: String,
     /// The current mode set, also applies on boot
     pub mode: GfxMode,
-    /// Only for informational purposes
+    /// Only for temporary modes like compute or vfio
     #[serde(skip)]
     pub tmp_mode: Option<GfxMode>,
+    /// Just for tracking the requested mode change in rebootless mode
+    #[serde(skip)]
+    pub pending_mode: Option<GfxMode>,
+    /// Just for tracking the required user action
+    #[serde(skip)]
+    pub pending_action: Option<GfxRequiredUserAction>,
     /// Set if vfio option is enabled. This requires the vfio drivers to be built as modules
     pub vfio_enable: bool,
     /// Save the VFIO mode so that it is reloaded on boot
@@ -31,6 +64,10 @@ pub struct GfxConfig {
     pub compute_save: bool,
     /// Should always reboot?
     pub always_reboot: bool,
+    /// Don't use logind to see if all sessions are logged out and therefore safe to change mode
+    pub no_logind: bool,
+    /// The timeout in seconds to wait for all user graphical sessions to end. Default is 3 minutes, 0 = infinite. Ignored if `no_logind` or `always_reboot` is set.
+    pub logout_timeout_s: u64,
 }
 
 impl GfxConfig {
@@ -39,10 +76,14 @@ impl GfxConfig {
             config_path,
             mode: GfxMode::Hybrid,
             tmp_mode: None,
+            pending_mode: None,
+            pending_action: None,
             vfio_enable: false,
             vfio_save: false,
             compute_save: false,
             always_reboot: false,
+            no_logind: false,
+            logout_timeout_s: 180,
         }
     }
 
@@ -146,6 +187,7 @@ pub(crate) fn create_modprobe_conf(vendor: GfxMode, devices: &DiscreetGpu) -> Re
         GfxMode::Vfio => create_vfio_conf(devices),
         GfxMode::Integrated => MODPROBE_INTEGRATED.to_vec(),
         GfxMode::Compute => MODPROBE_NVIDIA_BASE.to_vec(),
+        GfxMode::None => vec![],
     };
 
     let mut file = std::fs::OpenOptions::new()

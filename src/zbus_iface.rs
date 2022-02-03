@@ -3,6 +3,7 @@ use log::{error, info, warn};
 use zvariant::ObjectPath;
 
 use crate::{
+    config::GfxConfigDbus,
     gfx_vendors::{GfxMode, GfxPower, GfxRequiredUserAction},
     DBUS_IFACE_PATH, VERSION,
 };
@@ -50,7 +51,7 @@ impl CtrlGraphics {
     ///     Unknown,
     /// }
     fn power(&self) -> zbus::fdo::Result<GfxPower> {
-        self.dgpu().get_dgpu_runtime_status().map_err(|err| {
+        self.dgpu.get_dgpu_runtime_status().map_err(|err| {
             error!("{}", err);
             zbus::fdo::Error::Failed(format!("GFX fail: {}", err))
         })
@@ -89,9 +90,74 @@ impl CtrlGraphics {
         Ok(msg)
     }
 
+    /// Get the `String` name of the pending mode change if any
+    fn pending_mode(&self) -> zbus::fdo::Result<GfxMode> {
+        Ok(self.get_pending_mode())
+    }
+
+    /// Get the `String` name of the pending required user action if any
+    fn pending_user_action(&self) -> zbus::fdo::Result<GfxRequiredUserAction> {
+        Ok(self.get_pending_user_action())
+    }
+
+    /// Get the base config, args in order are:
+    /// pub mode: GfxMode,
+    /// vfio_enable: bool,
+    /// vfio_save: bool,
+    /// compute_save: bool,
+    /// always_reboot: bool,
+    /// no_logind: bool,
+    /// logout_timeout_s: u64,
+    fn config(&self) -> zbus::fdo::Result<GfxConfigDbus> {
+        let cfg = self
+            .config
+            .try_lock()
+            .map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
+        let cfg = GfxConfigDbus::from(&*cfg);
+        Ok(cfg)
+    }
+
+    /// Set the base config, args in order are:
+    /// pub mode: GfxMode,
+    /// vfio_enable: bool,
+    /// vfio_save: bool,
+    /// compute_save: bool,
+    /// always_reboot: bool,
+    /// no_logind: bool,
+    /// logout_timeout_s: u64,
+    fn set_config(&mut self, config: GfxConfigDbus) -> zbus::fdo::Result<()> {
+        let do_mode_change;
+        let mode;
+
+        {
+            let mut cfg = self
+                .config
+                .try_lock()
+                .map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
+
+            do_mode_change = cfg.mode == config.mode;
+            mode = cfg.mode;
+
+            cfg.vfio_enable = config.vfio_enable;
+            cfg.vfio_save = config.vfio_save;
+            cfg.compute_save = config.compute_save;
+            cfg.always_reboot = config.always_reboot;
+            cfg.no_logind = config.no_logind;
+            cfg.logout_timeout_s = config.logout_timeout_s;
+        }
+
+        if do_mode_change {
+            self.set_mode(mode).ok();
+        }
+
+        Ok(())
+    }
+
+    /// Recieve a notification if the graphics mode changes and to which mode
     #[dbus_interface(signal)]
     fn notify_gfx(&self, vendor: &GfxMode) -> zbus::Result<()> {}
 
+    /// Recieve a notification on required action if mode changes
     #[dbus_interface(signal)]
     fn notify_action(&self, action: &GfxRequiredUserAction) -> zbus::Result<()> {}
 }
