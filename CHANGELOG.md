@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.4] - 2022-02-05
+### Changed
+- Adjust the kernel cmdline arg code path
+
 ## [4.0.3] - 2022-02-04
 ### Added
 - Add config option `no_logind`: Don't use logind to see if all sessions are

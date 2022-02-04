@@ -49,25 +49,67 @@ impl CtrlGraphics {
 
     /// Force re-init of all state, including reset of device state
     pub fn reload(&mut self) -> Result<(), GfxError> {
-        let cmdline_mode = get_kernel_cmdline_mode()?
+        let vfio_enable;
+        let vfio_save;
+        let compute_save;
+
+        if let Ok(config) = self.config.lock() {
+            vfio_enable = config.vfio_enable;
+            vfio_save = config.vfio_save;
+            compute_save = config.compute_save;
+        } else {
+            error!("Could not lock config file on reload action");
+            return Ok(());
+        }
+
+        let mode = get_kernel_cmdline_mode()?
             .map(|mode| {
-                warn!(
-                    "Graphic mode {:?} set on kernel cmdline - this mode is temporary",
-                    mode
-                );
+                warn!("Graphic mode {:?} set on kernel cmdline", mode);
+                let mut save = false;
+                match mode {
+                    GfxMode::Dedicated | GfxMode::Hybrid | GfxMode::Integrated => save = true,
+                    GfxMode::Compute => {
+                        if compute_save {
+                            save = true;
+                        }
+                    }
+                    GfxMode::Vfio => {
+                        if vfio_save && vfio_enable {
+                            save = true;
+                        }
+                    }
+                    GfxMode::Egpu => {
+                        if asus_egpu_exists() {
+                            save = true;
+                        }
+                    }
+                    GfxMode::None => {}
+                }
+
+                if save {
+                    if let Ok(mut config) = self.config.lock() {
+                        config.mode = mode;
+                        config.write();
+                    }
+                }
+
                 mode
             })
             .unwrap_or(self.get_gfx_mode()?);
 
-        let vfio_enable = if let Ok(config) = self.config.try_lock() {
-            config.vfio_enable
-        } else {
-            false
-        };
+        if matches!(mode, GfxMode::Vfio) && !vfio_enable {
+            warn!("Tried to set vfio mode but it is not enabled");
+            return Ok(());
+        }
 
-        Self::do_mode_setup_tasks(cmdline_mode, vfio_enable, &self.dgpu)?;
+        if matches!(mode, GfxMode::Egpu) && !asus_egpu_exists() {
+            warn!("Tried to set egpu mode but it is not supported");
+            return Ok(());
+        }
 
-        info!("Reloaded gfx mode: {:?}", cmdline_mode);
+        Self::do_mode_setup_tasks(mode, vfio_enable, &self.dgpu)?;
+
+        info!("Reloaded gfx mode: {:?}", mode);
         Ok(())
     }
 
@@ -281,7 +323,9 @@ impl CtrlGraphics {
             GfxMode::Egpu => {
                 if !asus_egpu_exists() {
                     warn!("eGPU mode attempted while unsupported by this machine");
-                    return Ok(());
+                    return Err(GfxError::NotSupported(
+                        "eGPU mode not supported".to_string(),
+                    ));
                 }
 
                 if vfio_enable {
