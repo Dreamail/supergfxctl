@@ -165,7 +165,7 @@ impl PciDevice {
 
     pub fn lscpi_nvidia_check(&self) -> Result<bool, GfxError> {
         let s = self.lscpi()?;
-        for pat in ["GeForce"] {
+        for pat in ["GeForce", "Quadro"] {
             if s.contains(pat) {
                 return Ok(true);
             }
