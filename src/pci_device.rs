@@ -146,7 +146,7 @@ impl PciDevice {
     }
 
     fn lscpi(&self) -> Result<String, GfxError> {
-        let code = format!("{:#01X}:{:#01X}", self.vendor()?, self.device()?);
+        let code = format!("{:01X}:{:01X}", self.vendor()?, self.device()?);
         let mut cmd = Command::new("lspci");
         cmd.args(["-d", &code]);
         let s = String::from_utf8_lossy(&cmd.output()?.stdout).into_owned();
