@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.5] - 2022-06-22
+### Changed
+- Fix interaction with lspci >= 3.8.0 (Author: Anton Shangareev)
+- add "Quadro" to the lspci parsing for NVIDIA cards (Author: Brandon Bennett)
+
 ## [4.0.4] - 2022-02-05
 ### Changed
 - Adjust the kernel cmdline arg code path
