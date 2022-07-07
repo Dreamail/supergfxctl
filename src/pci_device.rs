@@ -155,7 +155,7 @@ impl PciDevice {
 
     pub fn lscpi_amd_check(&self) -> Result<bool, GfxError> {
         let s = self.lscpi()?;
-        for pat in ["Radeon RX"] {
+        for pat in ["Radeon RX", "AMD/ATI"] {
             if s.contains(pat) {
                 return Ok(true);
             }
