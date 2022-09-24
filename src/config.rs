@@ -2,7 +2,6 @@ use log::{error, info, warn};
 use serde_derive::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
 use zvariant_derive::Type;
 
 use crate::config_old::GfxConfig300;
@@ -11,8 +10,7 @@ use crate::gfx_devices::DiscreetGpu;
 use crate::gfx_vendors::{GfxMode, GfxRequiredUserAction};
 use crate::{
     MODPROBE_INTEGRATED, MODPROBE_NVIDIA_BASE, MODPROBE_NVIDIA_DRM_MODESET, MODPROBE_PATH,
-    MODPROBE_VFIO, PRIMARY_GPU_AMD_BEGIN, PRIMARY_GPU_END, PRIMARY_GPU_NVIDIA_BEGIN,
-    PRIMARY_IS_DGPU, PRIMARY_IS_EGPU, XORG_FILE, XORG_PATH,
+    MODPROBE_VFIO,
 };
 
 /// Cleaned config for passing over dbus only
@@ -172,7 +170,7 @@ fn create_vfio_conf(devices: &DiscreetGpu) -> Vec<u8> {
 pub(crate) fn create_modprobe_conf(vendor: GfxMode, devices: &DiscreetGpu) -> Result<(), GfxError> {
     info!("Writing {}", MODPROBE_PATH);
     let content = match vendor {
-        GfxMode::Dedicated | GfxMode::Hybrid | GfxMode::Egpu => {
+        GfxMode::Hybrid | GfxMode::Egpu => {
             if devices.is_nvidia() {
                 let mut base = MODPROBE_NVIDIA_BASE.to_vec();
                 base.append(&mut MODPROBE_NVIDIA_DRM_MODESET.to_vec());
@@ -201,67 +199,5 @@ pub(crate) fn create_modprobe_conf(vendor: GfxMode, devices: &DiscreetGpu) -> Re
         .and_then(|_| file.sync_all())
         .map_err(|err| GfxError::Write(MODPROBE_PATH.into(), err))?;
 
-    Ok(())
-}
-
-/// Write the appropriate xorg config for the chosen mode
-pub(crate) fn create_xorg_conf(mode: GfxMode, gfx: &DiscreetGpu) -> Result<(), GfxError> {
-    // Don't want these modes hooked by xorg
-    if matches!(mode, GfxMode::Compute | GfxMode::Vfio) {
-        return Ok(());
-    }
-    let text = if gfx.is_nvidia() {
-        if mode == GfxMode::Dedicated {
-            [
-                PRIMARY_GPU_NVIDIA_BEGIN,
-                PRIMARY_IS_DGPU,
-                if matches!(mode, GfxMode::Egpu) {
-                    PRIMARY_IS_EGPU
-                } else {
-                    &[]
-                },
-                PRIMARY_GPU_END,
-            ]
-            .concat()
-        } else {
-            [
-                PRIMARY_GPU_NVIDIA_BEGIN,
-                if matches!(mode, GfxMode::Egpu) {
-                    PRIMARY_IS_EGPU
-                } else {
-                    &[]
-                },
-                PRIMARY_GPU_END,
-            ]
-            .concat()
-        }
-    } else if gfx.is_amd() {
-        if mode == GfxMode::Dedicated {
-            [PRIMARY_GPU_AMD_BEGIN, PRIMARY_IS_DGPU, PRIMARY_GPU_END].concat()
-        } else {
-            [PRIMARY_GPU_AMD_BEGIN, PRIMARY_GPU_END].concat()
-        }
-    } else {
-        warn!("No valid xorg config for device");
-        return Ok(());
-    };
-
-    if !Path::new(XORG_PATH).exists() {
-        std::fs::create_dir(XORG_PATH).map_err(|err| GfxError::Write(XORG_PATH.into(), err))?;
-    }
-
-    let mut path = PathBuf::from(XORG_PATH);
-    path.push(XORG_FILE);
-    info!("Writing {}", path.display());
-    let mut file = std::fs::OpenOptions::new()
-        .create(true)
-        .truncate(true)
-        .write(true)
-        .open(&path)
-        .map_err(|err| GfxError::Write(format!("{}", path.display()), err))?;
-
-    file.write_all(&text)
-        .and_then(|_| file.sync_all())
-        .map_err(|err| GfxError::Write(MODPROBE_PATH.into(), err))?;
     Ok(())
 }

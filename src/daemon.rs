@@ -11,7 +11,7 @@ use supergfxctl::{
     controller::CtrlGraphics,
     error::GfxError,
     gfx_vendors::GfxMode,
-    special_asus::{get_asus_gsync_gfx_mode, has_asus_gsync_gfx_mode},
+    special_asus::{get_asus_gpu_mux_mode, has_asus_gpu_mux},
     CONFIG_PATH, DBUS_DEST_NAME,
 };
 use zbus::{fdo, Connection, ObjectServer};
@@ -58,7 +58,7 @@ fn start_daemon() -> Result<(), Box<dyn Error>> {
     match CtrlGraphics::new(config.clone()) {
         Ok(mut ctrl) => {
             // Need to check if a laptop has the dedicated gfx switch
-            if has_asus_gsync_gfx_mode() {
+            if has_asus_gpu_mux() {
                 do_asus_laptop_checks(&ctrl, config)?;
             } else {
                 ctrl.reload()
@@ -84,7 +84,7 @@ fn do_asus_laptop_checks(
     ctrl: &CtrlGraphics,
     config: Arc<Mutex<GfxConfig>>,
 ) -> Result<(), GfxError> {
-    if let Ok(ded) = get_asus_gsync_gfx_mode() {
+    if let Ok(ded) = get_asus_gpu_mux_mode() {
         if let Ok(config) = config.lock() {
             if ded == 1 {
                 warn!("Dedicated GFX toggle is on but driver mode is not nvidia \nSetting to nvidia driver mode");

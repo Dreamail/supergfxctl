@@ -75,7 +75,6 @@ impl From<&GfxVendor> for &str {
 #[derive(Debug, Type, PartialEq, Copy, Clone, Deserialize, Serialize)]
 pub enum GfxMode {
     Hybrid,
-    Dedicated,
     Integrated,
     Compute,
     Vfio,
@@ -89,7 +88,6 @@ impl FromStr for GfxMode {
     fn from_str(s: &str) -> Result<Self, GfxError> {
         match s.to_lowercase().trim() {
             "hybrid" => Ok(GfxMode::Hybrid),
-            "dedicated" => Ok(GfxMode::Dedicated),
             "integrated" => Ok(GfxMode::Integrated),
             "compute" => Ok(GfxMode::Compute),
             "vfio" => Ok(GfxMode::Vfio),
@@ -103,7 +101,6 @@ impl From<GfxMode> for &str {
     fn from(gfx: GfxMode) -> &'static str {
         match gfx {
             GfxMode::Hybrid => "hybrid",
-            GfxMode::Dedicated => "dedicated",
             GfxMode::Integrated => "integrated",
             GfxMode::Compute => "compute",
             GfxMode::Vfio => "vfio",

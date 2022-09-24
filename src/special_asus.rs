@@ -10,16 +10,29 @@ use crate::{do_driver_action, error::GfxError, pci_device::rescan_pci_bus, NVIDI
 
 static ASUS_DGPU_DISABLE_PATH: &str = "/sys/devices/platform/asus-nb-wmi/dgpu_disable";
 static ASUS_EGPU_ENABLE_PATH: &str = "/sys/devices/platform/asus-nb-wmi/egpu_enable";
+static ASUS_GPU_MUX_PATH: &str = "/sys/devices/platform/asus-nb-wmi/gpu_mux_mode";
 
-static ASUS_SWITCH_GRAPHIC_MODE: &str =
-    "/sys/firmware/efi/efivars/AsusSwitchGraphicMode-607005d5-3f75-4b2e-98f0-85ba66797a3e";
-
-pub fn has_asus_gsync_gfx_mode() -> bool {
-    Path::new(ASUS_SWITCH_GRAPHIC_MODE).exists()
+#[derive(Debug, PartialEq, PartialOrd, Clone, Copy)]
+pub enum AsusGpuMuxMode {
+    Dedicated,
+    Optimus,
 }
 
-pub fn get_asus_gsync_gfx_mode() -> Result<i8, GfxError> {
-    let path = ASUS_SWITCH_GRAPHIC_MODE;
+impl From<i8> for AsusGpuMuxMode {
+    fn from(v: i8) -> Self {
+        if v == 0 {
+            return Self::Dedicated;
+        }
+        Self::Optimus
+    }
+}
+
+pub fn has_asus_gpu_mux() -> bool {
+    Path::new(ASUS_GPU_MUX_PATH).exists()
+}
+
+pub fn get_asus_gpu_mux_mode() -> Result<AsusGpuMuxMode, GfxError> {
+    let path = ASUS_GPU_MUX_PATH;
     let mut file = OpenOptions::new()
         .read(true)
         .open(path)
@@ -30,7 +43,7 @@ pub fn get_asus_gsync_gfx_mode() -> Result<i8, GfxError> {
         .map_err(|err| GfxError::Read(path.into(), err))?;
 
     let idx = data.len() - 1;
-    Ok(data[idx] as i8)
+    Ok((data[idx] as i8).into())
 }
 
 pub(crate) fn asus_dgpu_exists() -> bool {

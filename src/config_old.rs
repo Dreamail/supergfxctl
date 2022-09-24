@@ -16,7 +16,7 @@ impl From<GfxMode300> for GfxMode {
     fn from(m: GfxMode300) -> Self {
         match m {
             GfxMode300::Hybrid => GfxMode::Hybrid,
-            GfxMode300::Nvidia => GfxMode::Dedicated,
+            GfxMode300::Nvidia => GfxMode::Hybrid,
             GfxMode300::Integrated => GfxMode::Integrated,
             GfxMode300::Compute => GfxMode::Compute,
             GfxMode300::Vfio => GfxMode::Vfio,

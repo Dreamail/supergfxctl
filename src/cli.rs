@@ -5,7 +5,7 @@ use supergfxctl::{
     error::GfxError,
     gfx_vendors::{GfxMode, GfxRequiredUserAction},
     nvidia_drm_modeset,
-    special_asus::{get_asus_gsync_gfx_mode, has_asus_gsync_gfx_mode},
+    special_asus::{get_asus_gpu_mux_mode, has_asus_gpu_mux},
     zbus_proxy::GfxProxy,
 };
 
@@ -96,7 +96,7 @@ fn do_gfx(command: CliStart) -> Result<(), GfxError> {
     proxy.connect_notify_action(tx)?;
 
     if let Some(mode) = command.mode {
-        if has_asus_gsync_gfx_mode() && get_asus_gsync_gfx_mode()? == 1 {
+        if has_asus_gpu_mux() && get_asus_gpu_mux_mode()? == 1 {
             eprintln!("You can not change modes until you turn dedicated/G-Sync off and reboot");
             std::process::exit(1);
         }

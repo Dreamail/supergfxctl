@@ -13,14 +13,14 @@ use std::{
 };
 
 use crate::{
-    config::{create_modprobe_conf, create_xorg_conf},
+    config::{create_modprobe_conf},
     error::GfxError,
     gfx_devices::DiscreetGpu,
     gfx_vendors::GfxVendor,
     pci_device::{rescan_pci_bus, RuntimePowerManagement},
     special_asus::{
-        asus_egpu_exists, asus_egpu_set_status, get_asus_gsync_gfx_mode, has_asus_gsync_gfx_mode,
-        is_gpu_enabled,
+        asus_egpu_exists, asus_egpu_set_status, get_asus_gpu_mux_mode, has_asus_gpu_mux,
+        is_gpu_enabled, AsusGpuMuxMode,
     },
     *,
 };
@@ -67,7 +67,7 @@ impl CtrlGraphics {
                 warn!("Graphic mode {:?} set on kernel cmdline", mode);
                 let mut save = false;
                 match mode {
-                    GfxMode::Dedicated | GfxMode::Hybrid | GfxMode::Integrated => save = true,
+                    GfxMode::Hybrid | GfxMode::Integrated => save = true,
                     GfxMode::Compute => {
                         if compute_save {
                             save = true;
@@ -158,7 +158,7 @@ impl CtrlGraphics {
             return vec![GfxMode::Integrated];
         }
 
-        let mut list = vec![GfxMode::Integrated, GfxMode::Hybrid, GfxMode::Dedicated];
+        let mut list = vec![GfxMode::Integrated, GfxMode::Hybrid];
 
         if self.dgpu.is_nvidia() {
             list.push(GfxMode::Compute);
@@ -251,7 +251,7 @@ impl CtrlGraphics {
                 return GfxRequiredUserAction::None;
             }
             // Modes that require a switch to integrated first
-            if matches!(current, GfxMode::Dedicated | GfxMode::Hybrid)
+            if matches!(current, GfxMode::Hybrid)
                 && matches!(vendor, GfxMode::Compute | GfxMode::Vfio)
             {
                 return GfxRequiredUserAction::Integrated;
@@ -280,11 +280,10 @@ impl CtrlGraphics {
         rescan_pci_bus()?;
         devices.set_runtime_pm(RuntimePowerManagement::Auto)?;
 
-        create_xorg_conf(mode, devices)?;
         create_modprobe_conf(mode, devices)?;
 
         match mode {
-            GfxMode::Dedicated | GfxMode::Hybrid | GfxMode::Compute => {
+            GfxMode::Hybrid | GfxMode::Compute => {
                 if vfio_enable {
                     for driver in VFIO_DRIVERS.iter() {
                         do_driver_action(driver, "rmmod")?;
@@ -444,7 +443,7 @@ impl CtrlGraphics {
             // Failsafe. In the event this loop is run with a switch from nvidia in use
             // to vfio or compute do a forced switch to integrated instead to prevent issues
             if matches!(mode, GfxMode::Compute | GfxMode::Vfio)
-                && matches!(config.mode, GfxMode::Dedicated | GfxMode::Hybrid)
+                && matches!(config.mode, GfxMode::Hybrid)
             {
                 Self::do_mode_setup_tasks(GfxMode::Integrated, vfio_enable, &devices)?;
                 if !no_logind {
@@ -506,10 +505,10 @@ impl CtrlGraphics {
     ///
     /// For manually calling (not on boot/startup) via dbus
     pub fn set_gfx_mode(&mut self, mode: GfxMode) -> Result<GfxRequiredUserAction, GfxError> {
-        if has_asus_gsync_gfx_mode() {
-            if let Ok(gsync) = get_asus_gsync_gfx_mode() {
-                if gsync == 1 {
-                    return Err(GfxError::AsusGsyncModeActive);
+        if has_asus_gpu_mux() {
+            if let Ok(mux) = get_asus_gpu_mux_mode() {
+                if mux == AsusGpuMuxMode::Dedicated {
+                    return Err(GfxError::AsusGpuMuxModeDedicated);
                 }
             }
         }

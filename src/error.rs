@@ -6,7 +6,7 @@ pub enum GfxError {
     ParseVendor,
     DisplayManagerAction(String, ExitStatus),
     DisplayManagerTimeout(String),
-    AsusGsyncModeActive,
+    AsusGpuMuxModeDedicated,
     VfioBuiltin,
     VfioDisabled,
     MissingModule(String),
@@ -38,7 +38,7 @@ impl fmt::Display for GfxError {
             GfxError::DisplayManagerTimeout(state) => {
                 write!(f, "Timed out waiting for display-manager {} state", state)
             }
-            GfxError::AsusGsyncModeActive => write!(
+            GfxError::AsusGpuMuxModeDedicated => write!(
                 f,
                 "Can not switch gfx modes when dedicated/G-Sync mode is active"
             ),
