@@ -24,7 +24,7 @@ use std::sync::mpsc::Sender;
 use zbus::{dbus_proxy, Connection, Message, Result};
 
 use crate::{
-    gfx_vendors::{GfxMode, GfxPower, GfxRequiredUserAction},
+    pci_device::{GfxMode, GfxPower, GfxRequiredUserAction},
     DBUS_IFACE_PATH,
 };
 

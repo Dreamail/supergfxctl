@@ -1,6 +1,6 @@
 use serde_derive::{Deserialize, Serialize};
 
-use crate::{config::GfxConfig, gfx_vendors::GfxMode};
+use crate::{config::GfxConfig, pci_device::GfxMode, special_asus::asus_dgpu_exists};
 
 #[derive(Debug, PartialEq, Copy, Clone, Deserialize, Serialize)]
 pub enum GfxMode300 {
@@ -27,25 +27,17 @@ impl From<GfxMode300> for GfxMode {
 
 #[derive(Deserialize, Serialize)]
 pub struct GfxConfig300 {
-    #[serde(skip)]
-    config_path: String,
-    /// The current mode set, also applies on boot
     pub gfx_mode: GfxMode,
-    /// Only for informational purposes
-    #[serde(skip)]
-    pub gfx_tmp_mode: Option<GfxMode>,
-    /// Set if graphics management is enabled
     pub gfx_managed: bool,
-    /// Set if vfio option is enabled. This requires the vfio drivers to be built as modules
     pub gfx_vfio_enable: bool,
 }
 
 impl From<GfxConfig300> for GfxConfig {
     fn from(old: GfxConfig300) -> Self {
         GfxConfig {
-            config_path: old.config_path,
+            config_path: Default::default(),
             mode: old.gfx_mode.into(),
-            tmp_mode: old.gfx_tmp_mode,
+            tmp_mode: Default::default(),
             pending_mode: None,
             pending_action: None,
             vfio_enable: old.gfx_vfio_enable,
@@ -54,35 +46,26 @@ impl From<GfxConfig300> for GfxConfig {
             always_reboot: false,
             no_logind: false,
             logout_timeout_s: 180,
+            asus_use_dgpu_enable: asus_dgpu_exists(),
         }
     }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct GfxConfig402 {
-    #[serde(skip)]
-    pub config_path: String,
-    /// The current mode set, also applies on boot
     pub mode: GfxMode,
-    /// Only for informational purposes
-    #[serde(skip)]
-    pub tmp_mode: Option<GfxMode>,
-    /// Set if vfio option is enabled. This requires the vfio drivers to be built as modules
     pub vfio_enable: bool,
-    /// Save the VFIO mode so that it is reloaded on boot
     pub vfio_save: bool,
-    /// Save the Compute mode so that it is reloaded on boot
     pub compute_save: bool,
-    /// Should always reboot?
     pub always_reboot: bool,
 }
 
 impl From<GfxConfig402> for GfxConfig {
     fn from(old: GfxConfig402) -> Self {
         GfxConfig {
-            config_path: old.config_path,
+            config_path: Default::default(),
             mode: old.mode,
-            tmp_mode: old.tmp_mode,
+            tmp_mode: Default::default(),
             pending_mode: None,
             pending_action: None,
             vfio_enable: old.vfio_enable,
@@ -91,6 +74,37 @@ impl From<GfxConfig402> for GfxConfig {
             always_reboot: old.always_reboot,
             no_logind: false,
             logout_timeout_s: 180,
+            asus_use_dgpu_enable: asus_dgpu_exists(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct GfxConfig405 {
+    pub mode: GfxMode,
+    pub vfio_enable: bool,
+    pub vfio_save: bool,
+    pub compute_save: bool,
+    pub always_reboot: bool,
+    pub no_logind: bool,
+    pub logout_timeout_s: u64,
+}
+
+impl From<GfxConfig405> for GfxConfig {
+    fn from(old: GfxConfig405) -> Self {
+        GfxConfig {
+            config_path: Default::default(),
+            mode: old.mode,
+            tmp_mode: Default::default(),
+            pending_mode: None,
+            pending_action: None,
+            vfio_enable: old.vfio_enable,
+            vfio_save: old.vfio_save,
+            compute_save: old.compute_save,
+            always_reboot: old.always_reboot,
+            no_logind: false,
+            logout_timeout_s: 180,
+            asus_use_dgpu_enable: asus_dgpu_exists(),
         }
     }
 }

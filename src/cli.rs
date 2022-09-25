@@ -3,9 +3,8 @@
 use std::{env::args, process::Command, sync::mpsc::channel};
 use supergfxctl::{
     error::GfxError,
-    gfx_vendors::{GfxMode, GfxRequiredUserAction},
-    nvidia_drm_modeset,
-    special_asus::{get_asus_gpu_mux_mode, has_asus_gpu_mux},
+    pci_device::{GfxMode, GfxRequiredUserAction},
+    special_asus::{get_asus_gpu_mux_mode, has_asus_gpu_mux, AsusGpuMuxMode},
     zbus_proxy::GfxProxy,
 };
 
@@ -96,8 +95,8 @@ fn do_gfx(command: CliStart) -> Result<(), GfxError> {
     proxy.connect_notify_action(tx)?;
 
     if let Some(mode) = command.mode {
-        if has_asus_gpu_mux() && get_asus_gpu_mux_mode()? == 1 {
-            eprintln!("You can not change modes until you turn dedicated/G-Sync off and reboot");
+        if has_asus_gpu_mux() && get_asus_gpu_mux_mode()? == AsusGpuMuxMode::Dedicated {
+            eprintln!("You can not change modes until you turn the GPU MUX off and reboot");
             std::process::exit(1);
         }
 
@@ -115,10 +114,7 @@ fn do_gfx(command: CliStart) -> Result<(), GfxError> {
                         );
                         std::process::exit(1);
                     }
-                    GfxRequiredUserAction::Logout | GfxRequiredUserAction::Reboot => {
-                        if nvidia_drm_modeset()? {
-                            println!("\x1b[0;31mRebootless mode requires nvidia-drm.modeset=0 to be set on the kernel cmdline\n\x1b[0m");
-                        }
+                    GfxRequiredUserAction::Logout => {
                         println!(
                             "Graphics mode changed to {}. Required user action is: {}",
                             <&str>::from(mode),
@@ -127,6 +123,12 @@ fn do_gfx(command: CliStart) -> Result<(), GfxError> {
                     }
                     GfxRequiredUserAction::None => {
                         println!("Graphics mode changed to {}", <&str>::from(mode));
+                    }
+                    GfxRequiredUserAction::AsusGpuMuxDisable => {
+                        println!(
+                            "{:?}",
+                            <&str>::from(GfxRequiredUserAction::AsusGpuMuxDisable)
+                        );
                     }
                 }
             }

@@ -1,10 +1,15 @@
-use std::{fs::OpenOptions, io::Read, path::Path, process::Command, str::FromStr};
+use std::{
+    fs::OpenOptions,
+    io::Read,
+    path::{Path, PathBuf},
+    process::Command,
+    str::FromStr,
+};
 
-use gfx_devices::DiscreetGpu;
-use gfx_vendors::GfxMode;
 use log::{error, info, warn};
+use pci_device::{DiscreetGpu, GfxVendor};
 
-use crate::{error::GfxError, special_asus::asus_egpu_exists};
+use crate::{error::GfxError, pci_device::GfxMode, special_asus::*};
 
 /// The configuration for graphics. This should be saved and loaded on boot.
 pub mod config;
@@ -13,8 +18,6 @@ mod config_old;
 pub mod controller;
 /// Error: 404
 pub mod error;
-/// Mode names, follows what distros defined as common.
-pub mod gfx_vendors;
 /// Special-case functions for check/read/write of key functions on unique laptops
 /// such as the G-Sync mode available on some ASUS ROG laptops
 pub mod special_asus;
@@ -24,9 +27,8 @@ pub mod zbus_iface;
 /// Defined DBUS Proxy for supergfxctl
 pub mod zbus_proxy;
 
-pub(crate) mod gfx_devices;
 /// System interface helpers.
-pub(crate) mod pci_device;
+pub mod pci_device;
 
 /// Helper to expose the current crate version to external code
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -150,23 +152,56 @@ fn do_driver_action(driver: &str, action: &str) -> Result<(), GfxError> {
     }
 }
 
-pub fn nvidia_drm_modeset() -> Result<bool, GfxError> {
-    let path = Path::new(KERNEL_CMDLINE);
-    let mut file = OpenOptions::new()
-        .read(true)
-        .open(path)
-        .map_err(|err| GfxError::Path(KERNEL_CMDLINE.to_string(), err))?;
-    let mut buf = String::new();
-    file.read_to_string(&mut buf)?;
+pub fn toggle_nvidia_powerd(run: bool, vendor: GfxVendor) -> Result<(), GfxError> {
+    if vendor == GfxVendor::Nvidia {
+        let mut cmd = Command::new("systemctl");
+        if run {
+            cmd.arg("start");
+        } else {
+            cmd.arg("stop");
+        }
+        cmd.arg("nvidia-powerd.service");
 
-    // No need to be fast here, just check and go
-    if buf.contains("nvidia-drm.modeset=0") {
-        return Ok(false);
-    } else if buf.contains("nvidia-drm.modeset=1") {
-        return Ok(true);
+        let status = cmd.status()?;
+        if !status.success() {
+            warn!("{run} nvidia-powerd.service failed: {:?}", status.code());
+        }
     }
-    warn!("nvidia-drm.modeset is no set for kernel cmdline");
-    Ok(false)
+    Ok(())
+}
+
+pub fn kill_nvidia_lsof() -> Result<(), GfxError> {
+    if !PathBuf::from("/dev/nvidia0").exists() {
+        return Ok(());
+    }
+
+    let mut cmd = Command::new("lsof");
+    cmd.arg("/dev/nvidia0");
+
+    let output = cmd
+        .output()
+        .map_err(|err| GfxError::Command(format!("{:?}", cmd), err))?;
+
+    let st = String::from_utf8_lossy(&output.stdout);
+
+    for line in st.lines() {
+        if let Some(n) = line.split_whitespace().nth(1) {
+            if let Ok(n) = n.parse::<u32>() {
+                warn!("pid {n} is holding /dev/nvidia0. Killing");
+                let mut cmd = Command::new("kill");
+                cmd.arg("-9");
+                cmd.arg(format!("{n}"));
+                let status = cmd
+                    .status()
+                    .map_err(|err| GfxError::Command(format!("{:?}", cmd), err))?;
+                if !status.success() {
+                    warn!("Killing pid {n} failed");
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
 
 pub fn get_kernel_cmdline_mode() -> Result<Option<GfxMode>, GfxError> {

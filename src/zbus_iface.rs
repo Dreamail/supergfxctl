@@ -4,7 +4,7 @@ use zvariant::ObjectPath;
 
 use crate::{
     config::GfxConfigDbus,
-    gfx_vendors::{GfxMode, GfxPower, GfxRequiredUserAction},
+    pci_device::{GfxMode, GfxPower, GfxRequiredUserAction},
     DBUS_IFACE_PATH, VERSION,
 };
 
@@ -51,7 +51,7 @@ impl CtrlGraphics {
     ///     Unknown,
     /// }
     fn power(&self) -> zbus::fdo::Result<GfxPower> {
-        self.dgpu.get_dgpu_runtime_status().map_err(|err| {
+        self.dgpu.get_runtime_status().map_err(|err| {
             error!("{}", err);
             zbus::fdo::Error::Failed(format!("GFX fail: {}", err))
         })

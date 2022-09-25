@@ -4,14 +4,14 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use log::{error, info, warn, LevelFilter};
+use log::{error, info, warn};
 use std::io::Write;
 use supergfxctl::{
     config::GfxConfig,
     controller::CtrlGraphics,
     error::GfxError,
-    gfx_vendors::GfxMode,
-    special_asus::{get_asus_gpu_mux_mode, has_asus_gpu_mux},
+    pci_device::GfxMode,
+    special_asus::{get_asus_gpu_mux_mode, has_asus_gpu_mux, AsusGpuMuxMode},
     CONFIG_PATH, DBUS_DEST_NAME,
 };
 use zbus::{fdo, Connection, ObjectServer};
@@ -19,12 +19,13 @@ use zbus::{fdo, Connection, ObjectServer};
 pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut logger = env_logger::Builder::new();
     logger
+        .parse_default_env()
         .target(env_logger::Target::Stdout)
         .format(|buf, record| writeln!(buf, "{}: {}", record.level(), record.args()))
-        .filter(None, LevelFilter::Info)
+        // .filter(None, LevelFilter::Debug)
         .init();
 
-    let is_service = match env::var_os("IS_SUPERGFX_SERVICE") {
+    let is_service = match env::var_os("IS_SERVICE") {
         Some(val) => val == "1",
         None => false,
     };
@@ -59,7 +60,7 @@ fn start_daemon() -> Result<(), Box<dyn Error>> {
         Ok(mut ctrl) => {
             // Need to check if a laptop has the dedicated gfx switch
             if has_asus_gpu_mux() {
-                do_asus_laptop_checks(&ctrl, config)?;
+                do_asus_laptop_checks(&mut ctrl, config)?;
             } else {
                 ctrl.reload()
                     .unwrap_or_else(|err| error!("Gfx controller: {}", err));
@@ -81,19 +82,17 @@ fn start_daemon() -> Result<(), Box<dyn Error>> {
 }
 
 fn do_asus_laptop_checks(
-    ctrl: &CtrlGraphics,
+    ctrl: &mut CtrlGraphics,
     config: Arc<Mutex<GfxConfig>>,
 ) -> Result<(), GfxError> {
     if let Ok(ded) = get_asus_gpu_mux_mode() {
         if let Ok(config) = config.lock() {
-            if ded == 1 {
+            if ded == AsusGpuMuxMode::Dedicated {
                 warn!("Dedicated GFX toggle is on but driver mode is not nvidia \nSetting to nvidia driver mode");
-                let devices = ctrl.dgpu();
-                CtrlGraphics::do_mode_setup_tasks(GfxMode::Dedicated, false, &devices)?;
-            } else if ded == 0 {
+                CtrlGraphics::do_mode_setup_tasks(GfxMode::Hybrid, false, ctrl.dgpu_mut())?;
+            } else {
                 info!("Dedicated GFX toggle is off");
-                let devices = ctrl.dgpu();
-                CtrlGraphics::do_mode_setup_tasks(config.mode, false, &devices)?;
+                CtrlGraphics::do_mode_setup_tasks(config.mode, false, ctrl.dgpu_mut())?;
             }
         }
     }

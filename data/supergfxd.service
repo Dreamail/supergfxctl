@@ -5,7 +5,8 @@ StartLimitBurst=2
 Before=multi-user.target
 
 [Service]
-Environment=IS_SUPERGFX_SERVICE=1
+Environment=IS_SERVICE=1
+Environment=RUST_LOG=info
 ExecStart=/usr/bin/supergfxd
 Restart=on-failure
 Restart=always
