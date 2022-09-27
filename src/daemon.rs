@@ -87,12 +87,19 @@ fn do_asus_laptop_checks(
 ) -> Result<(), GfxError> {
     if let Ok(ded) = get_asus_gpu_mux_mode() {
         if let Ok(config) = config.lock() {
-            if ded == AsusGpuMuxMode::Dedicated {
-                warn!("Dedicated GFX toggle is on but driver mode is not nvidia \nSetting to nvidia driver mode");
-                CtrlGraphics::do_mode_setup_tasks(GfxMode::Hybrid, false, ctrl.dgpu_mut())?;
-            } else {
-                info!("Dedicated GFX toggle is off");
-                CtrlGraphics::do_mode_setup_tasks(config.mode, false, ctrl.dgpu_mut())?;
+            if let Ok(mut lock) = ctrl.dgpu_arc_clone().try_lock() {
+                if ded == AsusGpuMuxMode::Dedicated {
+                    warn!("Dedicated GFX toggle is on but driver mode is not nvidia \nSetting to nvidia driver mode");
+                    CtrlGraphics::do_mode_setup_tasks(GfxMode::Hybrid, false, false, &mut lock)?;
+                } else {
+                    info!("Dedicated GFX toggle is off");
+                    CtrlGraphics::do_mode_setup_tasks(
+                        config.mode,
+                        false,
+                        config.asus_use_dgpu_disable,
+                        &mut lock,
+                    )?;
+                }
             }
         }
     }

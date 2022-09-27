@@ -51,22 +51,22 @@ pub(crate) fn asus_dgpu_exists() -> bool {
     false
 }
 
-// pub(crate) fn asus_dgpu_disabled() -> Result<bool, GfxError> {
-//     let path = Path::new(ASUS_DGPU_DISABLE_PATH);
-//     let mut file = OpenOptions::new()
-//         .read(true)
-//         .open(path)
-//         .map_err(|err| GfxError::Path(ASUS_DGPU_DISABLE_PATH.to_string(), err))?;
-//     let mut buf = String::new();
-//     file.read_to_string(&mut buf)?;
-//     if buf.contains('1') {
-//         return Ok(true);
-//     }
-//     Ok(false)
-// }
+pub(crate) fn asus_dgpu_disabled() -> Result<bool, GfxError> {
+    let path = Path::new(ASUS_DGPU_DISABLE_PATH);
+    let mut file = OpenOptions::new()
+        .read(true)
+        .open(path)
+        .map_err(|err| GfxError::Path(ASUS_DGPU_DISABLE_PATH.to_string(), err))?;
+    let mut buf = String::new();
+    file.read_to_string(&mut buf)?;
+    if buf.contains('1') {
+        return Ok(true);
+    }
+    Ok(false)
+}
 
 /// Special ASUS only feature. On toggle to `off` it will rescan the PCI bus.
-pub(crate) fn asus_dgpu_set_status(disabled: bool) -> Result<(), GfxError> {
+pub(crate) fn asus_dgpu_set_disabled(disabled: bool) -> Result<(), GfxError> {
     if disabled {
         for driver in NVIDIA_DRIVERS.iter() {
             do_driver_action(driver, "rmmod")?;
@@ -103,16 +103,16 @@ pub(crate) fn asus_egpu_exists() -> bool {
 // }
 
 /// Special ASUS only feature. On toggle to `on` it will rescan the PCI bus.
-pub(crate) fn asus_egpu_set_status(status: bool) -> Result<(), GfxError> {
+pub(crate) fn asus_egpu_set_enabled(enabled: bool) -> Result<(), GfxError> {
     // toggling from egpu must have the nvidia driver unloaded
     for driver in NVIDIA_DRIVERS.iter() {
         do_driver_action(driver, "rmmod")?;
     }
     // Need to set, scan, set to ensure mode is correctly set
-    asus_gpu_toggle(status, ASUS_EGPU_ENABLE_PATH)?;
-    if status {
+    asus_gpu_toggle(enabled, ASUS_EGPU_ENABLE_PATH)?;
+    if enabled {
         rescan_pci_bus()?;
-        asus_gpu_toggle(status, ASUS_EGPU_ENABLE_PATH)?;
+        asus_gpu_toggle(enabled, ASUS_EGPU_ENABLE_PATH)?;
     }
     Ok(())
 }

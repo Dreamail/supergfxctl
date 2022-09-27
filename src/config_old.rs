@@ -46,7 +46,7 @@ impl From<GfxConfig300> for GfxConfig {
             always_reboot: false,
             no_logind: false,
             logout_timeout_s: 180,
-            asus_use_dgpu_enable: asus_dgpu_exists(),
+            asus_use_dgpu_disable: asus_dgpu_exists(),
         }
     }
 }
@@ -74,7 +74,7 @@ impl From<GfxConfig402> for GfxConfig {
             always_reboot: old.always_reboot,
             no_logind: false,
             logout_timeout_s: 180,
-            asus_use_dgpu_enable: asus_dgpu_exists(),
+            asus_use_dgpu_disable: asus_dgpu_exists(),
         }
     }
 }
@@ -104,7 +104,7 @@ impl From<GfxConfig405> for GfxConfig {
             always_reboot: old.always_reboot,
             no_logind: false,
             logout_timeout_s: 180,
-            asus_use_dgpu_enable: asus_dgpu_exists(),
+            asus_use_dgpu_disable: asus_dgpu_exists(),
         }
     }
 }

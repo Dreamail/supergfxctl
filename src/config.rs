@@ -36,7 +36,7 @@ impl From<&GfxConfig> for GfxConfigDbus {
             always_reboot: c.always_reboot,
             no_logind: c.no_logind,
             logout_timeout_s: c.logout_timeout_s,
-            asus_use_dgpu_enable: c.asus_use_dgpu_enable,
+            asus_use_dgpu_enable: c.asus_use_dgpu_disable,
         }
     }
 }
@@ -69,7 +69,7 @@ pub struct GfxConfig {
     /// The timeout in seconds to wait for all user graphical sessions to end. Default is 3 minutes, 0 = infinite. Ignored if `no_logind` or `always_reboot` is set.
     pub logout_timeout_s: u64,
     /// Specific to ASUS ROG/TUF laptops
-    pub asus_use_dgpu_enable: bool,
+    pub asus_use_dgpu_disable: bool,
 }
 
 impl GfxConfig {
@@ -86,7 +86,7 @@ impl GfxConfig {
             always_reboot: false,
             no_logind: false,
             logout_timeout_s: 180,
-            asus_use_dgpu_enable: asus_dgpu_exists(),
+            asus_use_dgpu_disable: asus_dgpu_exists(),
         }
     }
 
