@@ -19,16 +19,14 @@
 //!
 //! …consequently `zbus-xmlgen` did not generate code for the above interfaces.
 
-use std::sync::mpsc::Sender;
+use zbus::dbus_proxy;
 
-use zbus::{dbus_proxy, Connection, Message, Result};
+use crate::pci_device::{GfxMode, GfxPower, GfxRequiredUserAction};
 
-use crate::{
-    pci_device::{GfxMode, GfxPower, GfxRequiredUserAction},
-    DBUS_IFACE_PATH,
-};
-
-#[dbus_proxy(interface = "org.supergfxctl.Daemon")]
+#[dbus_proxy(
+    interface = "org.supergfxctl.Daemon",
+    default_path = "/org/supergfxctl/Gfx"
+)]
 trait Daemon {
     /// Version method
     fn version(&self) -> zbus::Result<String>;
@@ -60,97 +58,4 @@ trait Daemon {
     /// NotifyGfx signal
     #[dbus_proxy(signal)]
     fn notify_gfx(&self, mode: GfxMode) -> zbus::Result<()>;
-}
-
-pub struct GfxProxy<'a>(pub DaemonProxy<'a>);
-
-impl<'a> GfxProxy<'a> {
-    #[inline]
-    pub fn new(conn: &Connection) -> Result<Self> {
-        let proxy = DaemonProxy::new_for(conn, "org.supergfxctl.Daemon", DBUS_IFACE_PATH)?;
-        Ok(GfxProxy(proxy))
-    }
-
-    #[inline]
-    pub fn new_for(conn: &Connection, destination: &'a str, path: &'a str) -> Result<Self> {
-        let proxy = DaemonProxy::new_for(conn, destination, path)?;
-        Ok(GfxProxy(proxy))
-    }
-
-    #[inline]
-    pub fn new_for_owned(conn: Connection, destination: String, path: String) -> Result<Self> {
-        let proxy = DaemonProxy::new_for_owned(conn, destination, path)?;
-        Ok(GfxProxy(proxy))
-    }
-
-    #[inline]
-    pub fn proxy(&self) -> &DaemonProxy<'a> {
-        &self.0
-    }
-
-    #[inline]
-    pub fn get_version(&self) -> Result<String> {
-        self.0.version()
-    }
-
-    #[inline]
-    pub fn get_vendor(&self) -> Result<String> {
-        self.0.vendor()
-    }
-
-    #[inline]
-    pub fn get_pwr(&self) -> Result<GfxPower> {
-        self.0.power()
-    }
-
-    #[inline]
-    pub fn get_mode(&self) -> Result<GfxMode> {
-        self.0.mode()
-    }
-
-    #[inline]
-    pub fn get_supported_modes(&self) -> Result<Vec<GfxMode>> {
-        self.0.supported()
-    }
-
-    #[inline]
-    pub fn pending_mode(&self) -> Result<GfxMode> {
-        self.0.pending_mode()
-    }
-
-    #[inline]
-    pub fn pending_user_action(&self) -> Result<GfxRequiredUserAction> {
-        self.0.pending_user_action()
-    }
-
-    #[inline]
-    pub fn write_mode(&self, mode: &GfxMode) -> Result<GfxRequiredUserAction> {
-        self.0.set_mode(mode)
-    }
-
-    #[inline]
-    pub fn connect_notify_action(
-        &self,
-        send: Sender<GfxRequiredUserAction>,
-    ) -> zbus::fdo::Result<()> {
-        self.0.connect_notify_action(move |data| {
-            send.send(data)
-                .map_err(|err| zbus::fdo::Error::Failed(err.to_string()))?;
-            Ok(())
-        })
-    }
-
-    #[inline]
-    pub fn connect_notify_gfx(&self, send: Sender<GfxMode>) -> zbus::fdo::Result<()> {
-        self.0.connect_notify_gfx(move |data| {
-            send.send(data)
-                .map_err(|err| zbus::fdo::Error::Failed(err.to_string()))?;
-            Ok(())
-        })
-    }
-
-    #[inline]
-    pub fn next_signal(&self) -> Result<Option<Message>> {
-        self.0.next_signal()
-    }
 }

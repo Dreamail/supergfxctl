@@ -436,12 +436,14 @@ impl DiscreetGpu {
     }
 
     pub fn get_runtime_status(&self) -> Result<GfxPower, GfxError> {
-        debug!("get_runtime_status: {:?}", self.devices[self.dgpu_index]);
-        if self.vendor != GfxVendor::Unknown {
-            return self.devices[self.dgpu_index].get_runtime_status();
-        }
-        if self.vendor == GfxVendor::AsusDgpuDisabled {
-            return Ok(GfxPower::AsusDisabled);
+        if self.devices.len() > 0 {
+            debug!("get_runtime_status: {:?}", self.devices[self.dgpu_index]);
+            if self.vendor != GfxVendor::Unknown {
+                return self.devices[self.dgpu_index].get_runtime_status();
+            }
+            if self.vendor == GfxVendor::AsusDgpuDisabled {
+                return Ok(GfxPower::AsusDisabled);
+            }
         }
         Err(GfxError::NotSupported("Could not find dGPU".to_string()))
     }

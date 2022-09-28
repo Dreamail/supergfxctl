@@ -1,8 +1,4 @@
-use std::{
-    env,
-    error::Error,
-    sync::{Arc, Mutex},
-};
+use std::{env, sync::Arc, time::Duration};
 
 use log::{error, info, warn};
 use std::io::Write;
@@ -12,11 +8,14 @@ use supergfxctl::{
     error::GfxError,
     pci_device::GfxMode,
     special_asus::{get_asus_gpu_mux_mode, has_asus_gpu_mux, AsusGpuMuxMode},
-    CONFIG_PATH, DBUS_DEST_NAME,
+    CONFIG_PATH, DBUS_DEST_NAME, DBUS_IFACE_PATH,
 };
-use zbus::{fdo, Connection, ObjectServer};
+use tokio::time::sleep;
+use zbus::{export::futures_util::lock::Mutex, Connection};
+use zvariant::ObjectPath;
 
-pub fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[tokio::main]
+async fn main() -> Result<(), GfxError> {
     let mut logger = env_logger::Builder::new();
     logger
         .parse_default_env()
@@ -39,18 +38,14 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    start_daemon()
+    start_daemon().await
 }
 
-fn start_daemon() -> Result<(), Box<dyn Error>> {
+async fn start_daemon() -> Result<(), GfxError> {
     // Start zbus server
-    let connection = Connection::new_system()?;
-    fdo::DBusProxy::new(&connection)?.request_name(
-        DBUS_DEST_NAME,
-        fdo::RequestNameFlags::ReplaceExisting.into(),
-    )?;
-
-    let mut object_server = ObjectServer::new(&connection);
+    let connection = Connection::system().await?;
+    // Request dbus name after finishing initalizing all functions
+    connection.request_name(DBUS_DEST_NAME).await?;
 
     let config = GfxConfig::load(CONFIG_PATH.into());
     let config = Arc::new(Mutex::new(config));
@@ -60,47 +55,58 @@ fn start_daemon() -> Result<(), Box<dyn Error>> {
         Ok(mut ctrl) => {
             // Need to check if a laptop has the dedicated gfx switch
             if has_asus_gpu_mux() {
-                do_asus_laptop_checks(&mut ctrl, config)?;
+                do_asus_laptop_checks(&mut ctrl, config).await?;
             } else {
                 ctrl.reload()
+                    .await
                     .unwrap_or_else(|err| error!("Gfx controller: {}", err));
             }
 
-            ctrl.add_to_server(&mut object_server);
+            connection
+                .object_server()
+                .at(&ObjectPath::from_str_unchecked(DBUS_IFACE_PATH), ctrl)
+                .await
+                // .map_err(|err| {
+                //     warn!("{}: add_to_server {}", path, err);
+                //     err
+                // })
+                .ok();
         }
         Err(err) => {
             error!("Gfx control: {}", err);
         }
     }
+    // Request dbus name after finishing initalizing all functions
+    connection.request_name(DBUS_DEST_NAME).await?;
 
     // Loop to check errors and iterate zbus server
     loop {
-        if let Err(err) = object_server.try_handle_next() {
-            error!("{}", err);
-        }
+        // if let Err(err) = object_server.try_handle_next() {
+        //     error!("{}", err);
+        // }
+        sleep(Duration::from_secs(1)).await;
     }
 }
 
-fn do_asus_laptop_checks(
+async fn do_asus_laptop_checks(
     ctrl: &mut CtrlGraphics,
     config: Arc<Mutex<GfxConfig>>,
 ) -> Result<(), GfxError> {
     if let Ok(ded) = get_asus_gpu_mux_mode() {
-        if let Ok(config) = config.lock() {
-            if let Ok(mut lock) = ctrl.dgpu_arc_clone().try_lock() {
-                if ded == AsusGpuMuxMode::Dedicated {
-                    warn!("Dedicated GFX toggle is on but driver mode is not nvidia \nSetting to nvidia driver mode");
-                    CtrlGraphics::do_mode_setup_tasks(GfxMode::Hybrid, false, false, &mut lock)?;
-                } else {
-                    info!("Dedicated GFX toggle is off");
-                    CtrlGraphics::do_mode_setup_tasks(
-                        config.mode,
-                        false,
-                        config.asus_use_dgpu_disable,
-                        &mut lock,
-                    )?;
-                }
-            }
+        let ctrl = ctrl.dgpu_arc_clone();
+        let mut dgpu = ctrl.lock().await;
+        let config = config.lock().await;
+        if ded == AsusGpuMuxMode::Dedicated {
+            warn!("Dedicated GFX toggle is on but driver mode is not nvidia \nSetting to nvidia driver mode");
+            CtrlGraphics::do_mode_setup_tasks(GfxMode::Hybrid, false, false, &mut dgpu)?;
+        } else {
+            info!("Dedicated GFX toggle is off");
+            CtrlGraphics::do_mode_setup_tasks(
+                config.mode,
+                false,
+                config.asus_use_dgpu_disable,
+                &mut dgpu,
+            )?;
         }
     }
     Ok(())

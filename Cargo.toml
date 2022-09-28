@@ -9,7 +9,7 @@ homepage = "https://gitlab.com/asus-linux/asusctl"
 documentation = "https://docs.rs/rog-anime"
 description = "Types useful for fancy keyboards on ASUS ROG laptops"
 keywords = ["graphics", "nvidia", "switching"]
-edition = "2018"
+edition = "2021"
 exclude = ["data"]
 
 [features]
@@ -38,10 +38,11 @@ serde_derive = "^1.0"
 serde_json = "^1.0"
 log = "^0.4"
 
-zbus = "^1.9.1"
-zvariant = "^2.8"
-zvariant_derive = "^2.8"
-logind-zbus = "^0.7.1"
+zbus = "^3.1.0"
+zvariant = "^3.2"
+zvariant_derive = "^3.2"
+logind-zbus = { version = "^3.0" }
+tokio = { version = "^1.21.2", features = ["macros", "rt-multi-thread", "time"]}
 
 env_logger = { version = "^0.8", optional = true }
 gumdrop = { version = "^0.8", optional = true }

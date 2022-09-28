@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Check if asus gpu_mux_mode exists, and value of it
 - Removed dedicated mode as it causes more trouble than it is worth
 - Config option `asus_use_dgpu_enable` defaults to on if ASUS dgpu_disable exists
+- Update dependencies
 
 ## [4.0.5] - 2022-06-22
 ### Changed

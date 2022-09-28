@@ -1,16 +1,14 @@
 use ::zbus::Connection;
 use log::{error, info, warn};
-use logind_zbus::{
-    types::{SessionClass, SessionInfo, SessionState, SessionType},
-    ManagerProxy, SessionProxy,
-};
+use logind_zbus::manager::{ManagerProxy, SessionInfo};
+use logind_zbus::session::{SessionClass, SessionProxy, SessionState, SessionType};
 use std::time::Instant;
-use std::{process::Command, thread::sleep, time::Duration};
+use std::{process::Command, time::Duration};
 use std::{
     sync::atomic::{AtomicBool, Ordering},
     sync::Arc,
-    sync::Mutex,
 };
+use zbus::export::futures_util::lock::Mutex;
 
 use crate::{
     config::create_modprobe_conf,
@@ -47,21 +45,17 @@ impl CtrlGraphics {
     }
 
     /// Force re-init of all state, including reset of device state
-    pub fn reload(&mut self) -> Result<(), GfxError> {
+    pub async fn reload(&mut self) -> Result<(), GfxError> {
         let vfio_enable;
         let use_asus_dgpu_disable;
         let vfio_save;
         let compute_save;
 
-        if let Ok(config) = self.config.lock() {
-            vfio_enable = config.vfio_enable;
-            use_asus_dgpu_disable = config.asus_use_dgpu_disable;
-            vfio_save = config.vfio_save;
-            compute_save = config.compute_save;
-        } else {
-            error!("Could not lock config file on reload action");
-            return Ok(());
-        }
+        let mut config = self.config.lock().await;
+        vfio_enable = config.vfio_enable;
+        use_asus_dgpu_disable = config.asus_use_dgpu_disable;
+        vfio_save = config.vfio_save;
+        compute_save = config.compute_save;
 
         let mode = get_kernel_cmdline_mode()?
             .map(|mode| {
@@ -74,14 +68,12 @@ impl CtrlGraphics {
                 }
 
                 if save {
-                    if let Ok(mut config) = self.config.lock() {
-                        config.mode = mode;
-                        config.write();
-                    }
+                    config.mode = mode;
+                    config.write();
                 }
                 mode
             })
-            .unwrap_or(self.get_gfx_mode()?);
+            .unwrap_or(self.get_gfx_mode(&config)?);
 
         if matches!(mode, GfxMode::Vfio) && !vfio_enable {
             warn!("Tried to set vfio mode but it is not enabled");
@@ -93,82 +85,62 @@ impl CtrlGraphics {
             return Ok(());
         }
 
-        if let Ok(mut lock) = self.dgpu.try_lock() {
-            Self::do_mode_setup_tasks(mode, vfio_enable, use_asus_dgpu_disable, &mut lock)?;
-        }
+        let mut dgpu = self.dgpu.lock().await;
+        Self::do_mode_setup_tasks(mode, vfio_enable, use_asus_dgpu_disable, &mut dgpu)?;
 
         info!("Reloaded gfx mode: {:?}", mode);
         Ok(())
     }
 
-    /// Save the selected `Mode` to config
-    fn save_gfx_mode(mode: GfxMode, config: Arc<Mutex<GfxConfig>>) {
-        if let Ok(mut config) = config.lock() {
-            config.mode = mode;
-            config.write();
-        }
-    }
-
     /// Associated method to get which mode is set
-    pub(crate) fn get_gfx_mode(&self) -> Result<GfxMode, GfxError> {
-        if let Ok(config) = self.config.lock() {
-            if let Some(mode) = config.tmp_mode {
-                return Ok(mode);
-            }
-            return Ok(config.mode);
+    pub(crate) fn get_gfx_mode(&self, config: &GfxConfig) -> Result<GfxMode, GfxError> {
+        if let Some(mode) = config.tmp_mode {
+            return Ok(mode);
         }
-        Err(GfxError::ParseVendor)
+        return Ok(config.mode);
     }
 
     ///
-    pub(crate) fn get_pending_mode(&self) -> GfxMode {
-        if let Ok(config) = self.config.lock() {
-            if let Some(mode) = config.pending_mode {
-                return mode;
-            }
+    pub(crate) async fn get_pending_mode(&self) -> GfxMode {
+        let config = self.config.lock().await;
+        if let Some(mode) = config.pending_mode {
+            return mode;
         }
         GfxMode::None
     }
 
     ///
-    pub(crate) fn get_pending_user_action(&self) -> GfxRequiredUserAction {
-        if let Ok(config) = self.config.lock() {
-            if let Some(action) = config.pending_action {
-                return action;
-            }
+    pub(crate) async fn get_pending_user_action(&self) -> GfxRequiredUserAction {
+        let config = self.config.lock().await;
+        if let Some(action) = config.pending_action {
+            return action;
         }
         GfxRequiredUserAction::None
     }
 
     /// Associated method to get list of supported modes
-    pub(crate) fn get_supported_modes(&self) -> Vec<GfxMode> {
+    pub(crate) async fn get_supported_modes(&self) -> Vec<GfxMode> {
         let mut list = vec![GfxMode::Integrated, GfxMode::Hybrid];
 
-        loop {
-            if let Ok(dgpu) = self.dgpu.try_lock() {
-                if matches!(dgpu.vendor(), GfxVendor::Unknown) && !asus_dgpu_exists() {
-                    return vec![GfxMode::Integrated];
-                }
+        let dgpu = self.dgpu.lock().await;
+        if matches!(dgpu.vendor(), GfxVendor::Unknown) && !asus_dgpu_exists() {
+            return vec![GfxMode::Integrated];
+        }
 
-                if dgpu.is_nvidia() {
-                    if asus_dgpu_exists() {
-                        if let Ok(config) = self.config.lock() {
-                                if !config.asus_use_dgpu_disable {
-                                    list.push(GfxMode::Compute);
-                                }
-                        }
-                    } else {
-                        list.push(GfxMode::Compute);
-                    }
+        if dgpu.is_nvidia() {
+            if asus_dgpu_exists() {
+                let config = self.config.lock().await;
+                if !config.asus_use_dgpu_disable {
+                    list.push(GfxMode::Compute);
                 }
-
-                if let Ok(config) = self.config.lock() {
-                    if config.vfio_enable {
-                        list.push(GfxMode::Vfio);
-                    }
-                }
+            } else {
+                list.push(GfxMode::Compute);
             }
-            break;
+        }
+
+        let config = self.config.lock().await;
+        if config.vfio_enable {
+            list.push(GfxMode::Vfio);
         }
 
         if asus_egpu_exists() {
@@ -179,12 +151,9 @@ impl CtrlGraphics {
     }
 
     /// Associated method to get which vendor the dgpu is from
-    pub(crate) fn get_gfx_vendor(&self) -> GfxVendor {
-        loop {
-            if let Ok(dgpu) = self.dgpu.try_lock() {
-                return dgpu.vendor();
-            }
-        }
+    pub(crate) async fn get_gfx_vendor(&self) -> GfxVendor {
+        let dgpu = self.dgpu.lock().await;
+        dgpu.vendor()
     }
 
     fn do_display_manager_action(action: &str) -> Result<(), GfxError> {
@@ -205,7 +174,7 @@ impl CtrlGraphics {
         Ok(())
     }
 
-    fn wait_display_manager_state(state: &str) -> Result<(), GfxError> {
+    async fn wait_display_manager_state(state: &str) -> Result<(), GfxError> {
         let mut cmd = Command::new("systemctl");
         cmd.arg("is-active");
         cmd.arg(DISPLAY_MANAGER);
@@ -220,6 +189,7 @@ impl CtrlGraphics {
             if output.stdout.starts_with(state.as_bytes()) {
                 return Ok(());
             }
+            // fine to block here, nobody doing shit now
             std::thread::sleep(std::time::Duration::from_millis(250));
             count += 1;
         }
@@ -228,26 +198,25 @@ impl CtrlGraphics {
 
     /// Determine if we need to logout/thread. Integrated<->Vfio mode does not
     /// require logout.
-    fn mode_change_action(&self, vendor: GfxMode) -> GfxRequiredUserAction {
-        if let Ok(config) = self.config.lock() {
-            let current = config.mode;
-            // Modes that can switch without logout
-            if matches!(
-                current,
-                GfxMode::Integrated | GfxMode::Vfio | GfxMode::Compute
-            ) && matches!(
-                vendor,
-                GfxMode::Integrated | GfxMode::Vfio | GfxMode::Compute
-            ) {
-                return GfxRequiredUserAction::None;
-            }
-            // Modes that require a switch to integrated first
-            if matches!(current, GfxMode::Hybrid)
-                && matches!(vendor, GfxMode::Compute | GfxMode::Vfio)
-            {
-                return GfxRequiredUserAction::Integrated;
-            }
+    async fn mode_change_action(&self, vendor: GfxMode) -> GfxRequiredUserAction {
+        let config = self.config.lock().await;
+        let current = config.mode;
+        // Modes that can switch without logout
+        if matches!(
+            current,
+            GfxMode::Integrated | GfxMode::Vfio | GfxMode::Compute
+        ) && matches!(
+            vendor,
+            GfxMode::Integrated | GfxMode::Vfio | GfxMode::Compute
+        ) {
+            return GfxRequiredUserAction::None;
         }
+        // Modes that require a switch to integrated first
+        if matches!(current, GfxMode::Hybrid) && matches!(vendor, GfxMode::Compute | GfxMode::Vfio)
+        {
+            return GfxRequiredUserAction::Integrated;
+        }
+
         GfxRequiredUserAction::Logout
     }
 
@@ -370,18 +339,21 @@ impl CtrlGraphics {
     }
 
     /// Check if the user has any graphical uiser sessions that are active or online
-    fn graphical_user_sessions_exist(
+    async fn graphical_user_sessions_exist(
         connection: &Connection,
         sessions: &[SessionInfo],
     ) -> Result<bool, GfxError> {
         for session in sessions {
-            let session_proxy = SessionProxy::new(connection, session)?;
-            if session_proxy.get_class()? == SessionClass::User {
-                match session_proxy.get_type()? {
+            let session_proxy = SessionProxy::builder(connection)
+                .path(session.path())?
+                .build()
+                .await?;
+            if session_proxy.class().await? == SessionClass::User {
+                match session_proxy.type_().await? {
                     SessionType::X11 | SessionType::Wayland | SessionType::MIR => {
-                        match session_proxy.get_state()? {
+                        match session_proxy.state().await? {
                             SessionState::Online | SessionState::Active => return Ok(true),
-                            SessionState::Closing | SessionState::Invalid => {}
+                            SessionState::Closing => {}
                         }
                     }
                     _ => {}
@@ -392,7 +364,7 @@ impl CtrlGraphics {
     }
 
     /// Spools until all user sessions are ended then switches to requested mode
-    fn mode_change_loop(
+    async fn mode_change_loop(
         mode: GfxMode,
         device: Arc<Mutex<DiscreetGpu>>,
         thread_stop: Arc<AtomicBool>,
@@ -406,38 +378,37 @@ impl CtrlGraphics {
         const SLEEP_PERIOD: Duration = Duration::from_millis(100);
         let start_time = Instant::now();
 
-        let connection = Connection::new_system()?;
-        let manager = ManagerProxy::new(&connection)?;
-        let mut sessions = manager.list_sessions()?;
+        let connection = Connection::system().await?;
+        let manager = ManagerProxy::new(&connection).await?;
+        let mut sessions = manager.list_sessions().await?;
 
-        loop {
-            // Don't wait on logind stuff if set
-            if let Ok(config) = config.try_lock() {
-                no_logind = config.no_logind;
-                use_asus_dgpu_disable = config.asus_use_dgpu_disable;
-                logout_timeout_s = config.logout_timeout_s;
-                info!("logout_timeout_s = {}", logout_timeout_s);
+        // Don't wait on logind stuff if set
+        {
+            let config = config.lock().await;
+            no_logind = config.no_logind;
+            use_asus_dgpu_disable = config.asus_use_dgpu_disable;
+            logout_timeout_s = config.logout_timeout_s;
+            info!("logout_timeout_s = {}", logout_timeout_s);
+        }
 
-                if no_logind {
-                    info!("no_logind option is set");
-                }
-                break;
-            }
+        if no_logind {
+            info!("no_logind option is set");
         }
 
         while !no_logind {
             if thread_stop.load(Ordering::SeqCst) {
                 info!("Thread forced to exit");
+                thread_stop.store(false, Ordering::Release);
                 return Ok("Exited".to_string());
             }
 
-            let tmp = manager.list_sessions()?;
+            let tmp = manager.list_sessions().await?;
             if !tmp.iter().eq(&sessions) {
                 info!("GFX thread: Sessions list changed");
                 sessions = tmp;
             }
 
-            if !Self::graphical_user_sessions_exist(&connection, &sessions)? {
+            if !Self::graphical_user_sessions_exist(&connection, &sessions).await? {
                 break;
             }
 
@@ -451,56 +422,51 @@ impl CtrlGraphics {
             }
 
             // Don't spin at max speed
-            sleep(SLEEP_PERIOD);
+            //sleep(SLEEP_PERIOD).await;
         }
 
-        if let Ok(mut device) = device.lock() {
+        let mut device = device.lock().await;
+        if !no_logind {
+            info!("GFX thread: all graphical user sessions ended, continuing");
+            Self::do_display_manager_action("stop")?;
+            Self::wait_display_manager_state("inactive").await?;
+        }
+
+        let mut mode_to_save = mode;
+        // Need to change to integrated before we can change to vfio or compute
+        // Since we have a lock, reset tmp to none. This thread should only ever run
+        // for Integrated, Hybrid, or Nvidia. Tmp is also only for informational
+        let mut config = config.lock().await;
+        config.tmp_mode = None;
+        //
+        let vfio_enable = config.vfio_enable;
+
+        // Failsafe. In the event this loop is run with a switch from nvidia in use
+        // to vfio or compute do a forced switch to integrated instead to prevent issues
+        if matches!(mode, GfxMode::Compute | GfxMode::Vfio)
+            && matches!(config.mode, GfxMode::Hybrid)
+        {
+            Self::do_mode_setup_tasks(
+                GfxMode::Integrated,
+                vfio_enable,
+                use_asus_dgpu_disable,
+                &mut device,
+            )?;
             if !no_logind {
-                info!("GFX thread: all graphical user sessions ended, continuing");
-                Self::do_display_manager_action("stop")?;
-                Self::wait_display_manager_state("inactive")?;
+                Self::do_display_manager_action("restart")?;
             }
-
-            let mut mode_to_save = mode;
-            // Need to change to integrated before we can change to vfio or compute
-            if let Ok(mut config) = config.try_lock() {
-                // Since we have a lock, reset tmp to none. This thread should only ever run
-                // for Integrated, Hybrid, or Nvidia. Tmp is also only for informational
-                config.tmp_mode = None;
-                //
-                let vfio_enable = config.vfio_enable;
-
-                // Failsafe. In the event this loop is run with a switch from nvidia in use
-                // to vfio or compute do a forced switch to integrated instead to prevent issues
-                if matches!(mode, GfxMode::Compute | GfxMode::Vfio)
-                    && matches!(config.mode, GfxMode::Hybrid)
-                {
-                    Self::do_mode_setup_tasks(
-                        GfxMode::Integrated,
-                        vfio_enable,
-                        use_asus_dgpu_disable,
-                        &mut device,
-                    )?;
-                    if !no_logind {
-                        Self::do_display_manager_action("restart")?;
-                    }
-                    mode_to_save = GfxMode::Integrated;
-                } else {
-                    Self::do_mode_setup_tasks(
-                        mode,
-                        vfio_enable,
-                        use_asus_dgpu_disable,
-                        &mut device,
-                    )?;
-                    if !no_logind {
-                        Self::do_display_manager_action("restart")?;
-                    }
-                }
+            mode_to_save = GfxMode::Integrated;
+        } else {
+            Self::do_mode_setup_tasks(mode, vfio_enable, use_asus_dgpu_disable, &mut device)?;
+            if !no_logind {
+                Self::do_display_manager_action("restart")?;
             }
-
-            // Save selected mode in case of reboot
-            Self::save_gfx_mode(mode_to_save, config);
         }
+
+        // Save selected mode in case of reboot
+        config.mode = mode_to_save;
+        config.write();
+
         info!("GFX thread: display-manager started");
 
         let v: &str = mode.into();
@@ -509,35 +475,32 @@ impl CtrlGraphics {
     }
 
     /// The thread is used only in cases where a logout is required
-    fn setup_mode_change_thread(&mut self, mode: GfxMode) {
+    async fn setup_mode_change_thread(&mut self, mode: GfxMode) {
         // First, stop all threads
         self.thread_exit.store(true, Ordering::Release);
-        // Give threads a chance to read
-        std::thread::sleep(Duration::from_secs(1));
-        // then reset
+        std::thread::sleep(Duration::from_millis(100));
         self.thread_exit.store(false, Ordering::Release);
 
-        let config = self.config.clone();
-        let rx = self.thread_exit.clone();
+        {
+            let mut config = self.config.lock().await;
+            config.pending_mode = Some(mode);
+        }
 
-        let dgpu = self.dgpu.clone();
-        std::thread::spawn(move || {
-            // A thread spawn typically means we're doing a rebootless change, so track pending mode
-            if let Ok(mut config) = config.try_lock() {
-                config.pending_mode = Some(mode);
-            }
+        Self::mode_change_loop(
+            mode,
+            self.dgpu.clone(),
+            self.thread_exit.clone(),
+            self.config.clone(),
+        )
+        .await
+        .map_err(|err| {
+            error!("Loop error: {}", err);
+        })
+        .ok();
 
-            Self::mode_change_loop(mode, dgpu, rx, config.clone())
-                .map_err(|err| {
-                    error!("Loop error: {}", err);
-                })
-                .ok();
-
-            if let Ok(mut config) = config.try_lock() {
-                config.pending_mode = None;
-                config.pending_action = None;
-            }
-        });
+        let mut config = self.config.lock().await;
+        config.pending_mode = None;
+        config.pending_action = None;
     }
 
     /// Initiates a mode change by starting a thread that will wait until all
@@ -545,7 +508,8 @@ impl CtrlGraphics {
     /// to switch modes.
     ///
     /// For manually calling (not on boot/startup) via dbus
-    pub fn set_gfx_mode(&mut self, mode: GfxMode) -> Result<GfxRequiredUserAction, GfxError> {
+    pub async fn set_gfx_mode(&mut self, mode: GfxMode) -> Result<GfxRequiredUserAction, GfxError> {
+        self.thread_exit.store(false, Ordering::Release);
         if has_asus_gpu_mux() {
             if let Ok(mux) = get_asus_gpu_mux_mode() {
                 if mux == AsusGpuMuxMode::Dedicated {
@@ -557,66 +521,58 @@ impl CtrlGraphics {
 
         let use_asus_dgpu_disable;
         let vfio_enable;
-        loop {
-            if let Ok(config) = self.config.try_lock() {
-                vfio_enable = config.vfio_enable;
-                use_asus_dgpu_disable = config.asus_use_dgpu_disable;
-                break;
-            }
+        {
+            let config = self.config.lock().await;
+            vfio_enable = config.vfio_enable;
+            use_asus_dgpu_disable = config.asus_use_dgpu_disable;
         }
 
         if !vfio_enable && matches!(mode, GfxMode::Vfio) {
             return Err(GfxError::VfioDisabled);
         }
 
-        let dgpu = self.dgpu.clone();
-        loop {
-            if let Ok(mut dgpu) = dgpu.try_lock() {
-                mode_support_check(&mode, &dgpu)?;
-
-                // determine which method we need here
-                let action_required = self.mode_change_action(mode);
-
-                match action_required {
-                    GfxRequiredUserAction::Logout => {
-                        info!("mode change requires a logout to complete");
-                        if let Ok(mut config) = self.config.lock() {
-                            config.pending_action = Some(action_required);
-                        }
-                        self.setup_mode_change_thread(mode);
-                    }
-                    GfxRequiredUserAction::Integrated => {
-                        info!("mode change requires user to be in Integrated mode first");
-                    }
-                    // Generally None for vfio, compute, integrated only
-                    GfxRequiredUserAction::None => {
-                        info!("mode change does not require logout");
-                        Self::do_mode_setup_tasks(
-                            mode,
-                            vfio_enable,
-                            use_asus_dgpu_disable,
-                            &mut dgpu,
-                        )?;
-                        info!("Graphics mode changed to {}", <&str>::from(mode));
-                        if let Ok(mut config) = self.config.try_lock() {
-                            config.tmp_mode = None;
-                            config.pending_action = None;
-                            config.pending_mode = None;
-
-                            if (matches!(mode, GfxMode::Vfio) && config.vfio_save)
-                                || matches!(mode, GfxMode::Compute) && config.compute_save
-                            {
-                                config.mode = mode;
-                                config.write();
-                            } else if matches!(mode, GfxMode::Vfio | GfxMode::Compute) {
-                                config.tmp_mode = Some(mode);
-                            }
-                        }
-                    }
-                    GfxRequiredUserAction::AsusGpuMuxDisable => {}
-                }
-                return Ok(action_required);
-            }
+        {
+            let dgpu = self.dgpu.lock().await;
+            mode_support_check(&mode, &dgpu)?;
         }
+
+        // determine which method we need here
+        let action_required = self.mode_change_action(mode).await;
+
+        match action_required {
+            GfxRequiredUserAction::Logout => {
+                info!("mode change requires a logout to complete");
+                {
+                    let mut config = self.config.lock().await;
+                    config.pending_action = Some(action_required);
+                }
+                self.setup_mode_change_thread(mode).await;
+            }
+            GfxRequiredUserAction::Integrated => {
+                info!("mode change requires user to be in Integrated mode first");
+            }
+            // Generally None for vfio, compute, integrated only
+            GfxRequiredUserAction::None => {
+                info!("mode change does not require logout");
+                let mut dgpu = self.dgpu.lock().await;
+                Self::do_mode_setup_tasks(mode, vfio_enable, use_asus_dgpu_disable, &mut dgpu)?;
+                info!("Graphics mode changed to {}", <&str>::from(mode));
+                let mut config = self.config.lock().await;
+                config.tmp_mode = None;
+                config.pending_action = None;
+                config.pending_mode = None;
+
+                if (matches!(mode, GfxMode::Vfio) && config.vfio_save)
+                    || matches!(mode, GfxMode::Compute) && config.compute_save
+                {
+                    config.mode = mode;
+                    config.write();
+                } else if matches!(mode, GfxMode::Vfio | GfxMode::Compute) {
+                    config.tmp_mode = Some(mode);
+                }
+            }
+            GfxRequiredUserAction::AsusGpuMuxDisable => {}
+        }
+        return Ok(action_required);
     }
 }

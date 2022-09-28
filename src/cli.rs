@@ -1,15 +1,15 @@
 //! Basic CLI tool to control the `supergfxd` daemon
 
-use std::{env::args, process::Command, sync::mpsc::channel};
+use std::{env::args, process::Command};
 use supergfxctl::{
     error::GfxError,
     pci_device::{GfxMode, GfxRequiredUserAction},
     special_asus::{get_asus_gpu_mux_mode, has_asus_gpu_mux, AsusGpuMuxMode},
-    zbus_proxy::GfxProxy,
+    zbus_proxy::DaemonProxyBlocking,
 };
 
 use gumdrop::Options;
-use zbus::Connection;
+use zbus::blocking::Connection;
 
 #[derive(Default, Clone, Copy, Options)]
 struct CliStart {
@@ -88,11 +88,8 @@ fn do_gfx(command: CliStart) -> Result<(), GfxError> {
         println!("{}", command.self_usage());
     }
 
-    let conn = Connection::new_system()?;
-    let proxy = GfxProxy::new(&conn)?;
-
-    let (tx, rx) = channel();
-    proxy.connect_notify_action(tx)?;
+    let conn = Connection::system()?;
+    let proxy = DaemonProxyBlocking::new(&conn)?;
 
     if let Some(mode) = command.mode {
         if has_asus_gpu_mux() && get_asus_gpu_mux_mode()? == AsusGpuMuxMode::Dedicated {
@@ -100,59 +97,52 @@ fn do_gfx(command: CliStart) -> Result<(), GfxError> {
             std::process::exit(1);
         }
 
-        proxy.write_mode(&mode)?;
-
-        loop {
-            proxy.next_signal()?;
-
-            if let Ok(res) = rx.try_recv() {
-                match res {
-                    GfxRequiredUserAction::Integrated => {
-                        eprintln!(
-                            "You must change to Integrated before you can change to {}",
-                            <&str>::from(mode)
-                        );
-                        std::process::exit(1);
-                    }
-                    GfxRequiredUserAction::Logout => {
-                        println!(
-                            "Graphics mode changed to {}. Required user action is: {}",
-                            <&str>::from(mode),
-                            <&str>::from(&res)
-                        );
-                    }
-                    GfxRequiredUserAction::None => {
-                        println!("Graphics mode changed to {}", <&str>::from(mode));
-                    }
-                    GfxRequiredUserAction::AsusGpuMuxDisable => {
-                        println!(
-                            "{:?}",
-                            <&str>::from(GfxRequiredUserAction::AsusGpuMuxDisable)
-                        );
-                    }
-                }
+        let res = proxy.set_mode(&mode)?;
+        match res {
+            GfxRequiredUserAction::Integrated => {
+                eprintln!(
+                    "You must change to Integrated before you can change to {}",
+                    <&str>::from(mode)
+                );
+                std::process::exit(1);
             }
-            std::process::exit(0)
+            GfxRequiredUserAction::Logout => {
+                println!(
+                    "Graphics mode changed to {}. Required user action is: {}",
+                    <&str>::from(mode),
+                    <&str>::from(res)
+                );
+            }
+            GfxRequiredUserAction::None => {
+                println!("Graphics mode changed to {}", <&str>::from(mode));
+            }
+            GfxRequiredUserAction::AsusGpuMuxDisable => {
+                println!(
+                    "{:?}",
+                    <&str>::from(GfxRequiredUserAction::AsusGpuMuxDisable)
+                );
+            }
         }
     }
+
     if command.version {
-        let res = proxy.get_version()?;
+        let res = proxy.version()?;
         println!("{}", res);
     }
     if command.get {
-        let res = proxy.get_mode()?;
+        let res = proxy.mode()?;
         println!("{}", <&str>::from(res));
     }
     if command.supported {
-        let res = proxy.get_supported_modes()?;
+        let res = proxy.supported()?;
         println!("{:?}", res);
     }
     if command.vendor {
-        let res = proxy.get_vendor()?;
+        let res = proxy.vendor()?;
         println!("{}", res);
     }
     if command.status {
-        let res = proxy.get_pwr()?;
+        let res = proxy.power()?;
         println!("{}", <&str>::from(&res));
     }
     if command.pend_action {
