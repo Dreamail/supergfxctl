@@ -1,3 +1,4 @@
+use log::debug;
 use std::{
     fs::OpenOptions,
     io::{Read, Write},
@@ -69,6 +70,7 @@ pub(crate) fn asus_dgpu_disabled() -> Result<bool, GfxError> {
 pub(crate) fn asus_dgpu_set_disabled(disabled: bool) -> Result<(), GfxError> {
     if disabled {
         for driver in NVIDIA_DRIVERS.iter() {
+            debug!("dgpu_disable set, ensuring nvidia drivers removed");
             do_driver_action(driver, "rmmod")?;
         }
     }
@@ -88,24 +90,11 @@ pub(crate) fn asus_egpu_exists() -> bool {
     false
 }
 
-// pub(crate) fn asus_egpu_enabled() -> Result<bool, GfxError> {
-//     let path = Path::new(ASUS_EGPU_ENABLE_PATH);
-//     let mut file = OpenOptions::new()
-//         .read(true)
-//         .open(path)
-//         .map_err(|err| GfxError::Path(ASUS_EGPU_ENABLE_PATH.to_string(), err))?;
-//     let mut buf = String::new();
-//     file.read_to_string(&mut buf)?;
-//     if buf.contains('1') {
-//         return Ok(true);
-//     }
-//     Ok(false)
-// }
-
 /// Special ASUS only feature. On toggle to `on` it will rescan the PCI bus.
 pub(crate) fn asus_egpu_set_enabled(enabled: bool) -> Result<(), GfxError> {
     // toggling from egpu must have the nvidia driver unloaded
     for driver in NVIDIA_DRIVERS.iter() {
+        debug!("egpu_enable unset, ensuring nvidia drivers removed");
         do_driver_action(driver, "rmmod")?;
     }
     // Need to set, scan, set to ensure mode is correctly set
@@ -126,5 +115,6 @@ fn asus_gpu_toggle(status: bool, path: &str) -> Result<(), GfxError> {
     let status = if status { 1 } else { 0 };
     file.write_all(status.to_string().as_bytes())
         .map_err(|err| GfxError::Write(path.to_string(), err))?;
+    debug!("switched {path} to {status}");
     Ok(())
 }

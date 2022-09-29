@@ -1,5 +1,5 @@
 use ::zbus::Connection;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use logind_zbus::manager::{ManagerProxy, SessionInfo};
 use logind_zbus::session::{SessionClass, SessionProxy, SessionState, SessionType};
 use std::time::Instant;
@@ -87,6 +87,17 @@ impl CtrlGraphics {
 
         let mut dgpu = self.dgpu.lock().await;
         Self::do_mode_setup_tasks(mode, vfio_enable, use_asus_dgpu_disable, &mut dgpu)?;
+        // Self::mode_change_loop(
+        //     mode,
+        //     self.dgpu.clone(),
+        //     self.thread_exit.clone(),
+        //     self.config.clone(),
+        // )
+        // .await
+        // .map_err(|err| {
+        //     error!("Loop error: {}", err);
+        // })
+        // .ok();
 
         info!("Reloaded gfx mode: {:?}", mode);
         Ok(())
@@ -234,10 +245,8 @@ impl CtrlGraphics {
         devices: &mut DiscreetGpu,
     ) -> Result<(), GfxError> {
         if asus_dgpu_exists() && matches!(mode, GfxMode::Hybrid | GfxMode::Compute) {
-            if use_asus_dgpu_disable
-                && asus_dgpu_exists()
-                && matches!(mode, GfxMode::Hybrid | GfxMode::Compute)
-            {
+            debug!("ASUS dgpu_disable found");
+            if use_asus_dgpu_disable && matches!(mode, GfxMode::Hybrid | GfxMode::Compute) {
                 // re-enable the ASUS dgpu
                 asus_dgpu_set_disabled(false)
                     .map_err(|e| {
@@ -304,8 +313,6 @@ impl CtrlGraphics {
                 toggle_nvidia_powerd(false, devices.vendor())?;
                 kill_nvidia_lsof()?;
                 devices.do_driver_action("rmmod")?;
-                //devices.unbind_remove()?;
-
                 // This can only be done *after* the drivers are removed or a
                 // hardlock will be caused
                 if asus_dgpu_exists() {

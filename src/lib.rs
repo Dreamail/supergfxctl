@@ -6,7 +6,7 @@ use std::{
     str::FromStr,
 };
 
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use pci_device::{DiscreetGpu, GfxVendor};
 
 use crate::{error::GfxError, pci_device::GfxMode, special_asus::*};
@@ -103,7 +103,7 @@ fn do_driver_action(driver: &str, action: &str) -> Result<(), GfxError> {
         if count > MAX_TRIES {
             let msg = format!("{} {} failed for unknown reason", action, driver);
             error!("{}", msg);
-            return Ok(()); //Err(GfxError::Modprobe(msg));
+            break; //Err(GfxError::Modprobe(msg));
         }
 
         let output = cmd
@@ -114,7 +114,8 @@ fn do_driver_action(driver: &str, action: &str) -> Result<(), GfxError> {
                 .stderr
                 .ends_with("is not currently loaded\n".as_bytes())
             {
-                return Ok(());
+                debug!("Driver {driver} was not loaded, skipping {action}");
+                break;
             }
             if output.stderr.ends_with("is builtin.\n".as_bytes()) {
                 return Err(GfxError::VfioBuiltin);
@@ -127,7 +128,7 @@ fn do_driver_action(driver: &str, action: &str) -> Result<(), GfxError> {
                     String::from_utf8_lossy(&output.stderr)
                 );
                 warn!("It may be safe to ignore the above error, run `lsmod |grep {}` to confirm modules loaded", driver);
-                return Ok(());
+                break;
             }
             if String::from_utf8_lossy(&output.stderr)
                 .contains(&format!("Module {} not found", driver))
@@ -144,12 +145,14 @@ fn do_driver_action(driver: &str, action: &str) -> Result<(), GfxError> {
                 return Err(GfxError::Modprobe(msg));
             }
         } else if output.status.success() {
-            return Ok(());
+            debug!("Did {action} for driver {driver}");
+            break;
         }
 
         count += 1;
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
+    Ok(())
 }
 
 pub fn toggle_nvidia_powerd(run: bool, vendor: GfxVendor) -> Result<(), GfxError> {
@@ -166,6 +169,7 @@ pub fn toggle_nvidia_powerd(run: bool, vendor: GfxVendor) -> Result<(), GfxError
         if !status.success() {
             warn!("{run} nvidia-powerd.service failed: {:?}", status.code());
         }
+        debug!("Did {:?}", cmd.get_args());
     }
     Ok(())
 }
