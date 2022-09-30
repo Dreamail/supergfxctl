@@ -55,10 +55,10 @@ impl CtrlGraphics {
     /// }
     async fn power(&self) -> zbus::fdo::Result<GfxPower> {
         let dgpu = self.dgpu.lock().await;
-        return dgpu.get_runtime_status().map_err(|err| {
+        dgpu.get_runtime_status().map_err(|err| {
             error!("{}", err);
             zbus::fdo::Error::Failed(format!("GFX fail: {}", err))
-        });
+        })
     }
 
     /// Set the graphics mode:

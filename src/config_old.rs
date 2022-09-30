@@ -2,7 +2,7 @@ use serde_derive::{Deserialize, Serialize};
 
 use crate::{config::GfxConfig, pci_device::GfxMode, special_asus::asus_dgpu_exists};
 
-#[derive(Debug, PartialEq, Copy, Clone, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Deserialize, Serialize)]
 pub enum GfxMode300 {
     Hybrid,
     Nvidia,
@@ -36,7 +36,7 @@ impl From<GfxConfig300> for GfxConfig {
     fn from(old: GfxConfig300) -> Self {
         GfxConfig {
             config_path: Default::default(),
-            mode: old.gfx_mode.into(),
+            mode: old.gfx_mode,
             tmp_mode: Default::default(),
             pending_mode: None,
             pending_action: None,

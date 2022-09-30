@@ -46,19 +46,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     eprintln!("\x1b[0;31msupergfxd is not running, start it with `systemctl start supergfxd\x1b[0m");
                 } else {
                     eprintln!("Please check `journalctl -b -u supergfxd`, and `systemctl status supergfxd`");
-                    match &err {
-                        GfxError::Zbus(err) => {
-                            match err {
-                                zbus::Error::MethodError(_,s,_) => {
-                                    if let Some(text) = s {
-                                        eprintln!("\x1b[0;31m{}\x1b[0m", text);
-                                        std::process::exit(1);
-                                    }
-                                }
-                                _ => {},
-                            }
-                        }
-                        _ => {},
+                    if let GfxError::Zbus(zbus::Error::MethodError(_,Some(text),_)) = &err {
+                                eprintln!("\x1b[0;31m{}\x1b[0m", text);
+                                std::process::exit(1);
                     }
                 }
                 eprintln!("Error: {}", err);

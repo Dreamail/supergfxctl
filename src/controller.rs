@@ -46,16 +46,11 @@ impl CtrlGraphics {
 
     /// Force re-init of all state, including reset of device state
     pub async fn reload(&mut self) -> Result<(), GfxError> {
-        let vfio_enable;
-        let use_asus_dgpu_disable;
-        let vfio_save;
-        let compute_save;
-
         let mut config = self.config.lock().await;
-        vfio_enable = config.vfio_enable;
-        use_asus_dgpu_disable = config.asus_use_dgpu_disable;
-        vfio_save = config.vfio_save;
-        compute_save = config.compute_save;
+        let vfio_enable = config.vfio_enable;
+        let use_asus_dgpu_disable = config.asus_use_dgpu_disable;
+        let vfio_save = config.vfio_save;
+        let compute_save = config.compute_save;
 
         let mode = get_kernel_cmdline_mode()?
             .map(|mode| {
@@ -108,7 +103,7 @@ impl CtrlGraphics {
         if let Some(mode) = config.tmp_mode {
             return Ok(mode);
         }
-        return Ok(config.mode);
+        Ok(config.mode)
     }
 
     ///
@@ -402,34 +397,36 @@ impl CtrlGraphics {
             info!("no_logind option is set");
         }
 
-        while !no_logind {
-            if thread_stop.load(Ordering::SeqCst) {
-                info!("Thread forced to exit");
-                thread_stop.store(false, Ordering::Release);
-                return Ok("Exited".to_string());
-            }
+        if !no_logind {
+            loop {
+                if thread_stop.load(Ordering::SeqCst) {
+                    info!("Thread forced to exit");
+                    thread_stop.store(false, Ordering::Release);
+                    return Ok("Exited".to_string());
+                }
 
-            let tmp = manager.list_sessions().await?;
-            if !tmp.iter().eq(&sessions) {
-                info!("GFX thread: Sessions list changed");
-                sessions = tmp;
-            }
+                let tmp = manager.list_sessions().await?;
+                if !tmp.iter().eq(&sessions) {
+                    info!("GFX thread: Sessions list changed");
+                    sessions = tmp;
+                }
 
-            if !Self::graphical_user_sessions_exist(&connection, &sessions).await? {
-                break;
-            }
+                if !Self::graphical_user_sessions_exist(&connection, &sessions).await? {
+                    break;
+                }
 
-            // exit if 3 minutes pass
-            if logout_timeout_s != 0
-                && Instant::now().duration_since(start_time).as_secs() > logout_timeout_s
-            {
-                let detail = format!("Time ({} seconds) for logout exceeded", logout_timeout_s);
-                warn!("{}", detail);
-                return Err(GfxError::DisplayManagerTimeout(detail));
-            }
+                // exit if 3 minutes pass
+                if logout_timeout_s != 0
+                    && Instant::now().duration_since(start_time).as_secs() > logout_timeout_s
+                {
+                    let detail = format!("Time ({} seconds) for logout exceeded", logout_timeout_s);
+                    warn!("{}", detail);
+                    return Err(GfxError::DisplayManagerTimeout(detail));
+                }
 
-            // Don't spin at max speed
-            //sleep(SLEEP_PERIOD).await;
+                // Don't spin at max speed
+                //sleep(SLEEP_PERIOD).await;
+            }
         }
 
         let mut device = device.lock().await;
@@ -580,6 +577,6 @@ impl CtrlGraphics {
             }
             GfxRequiredUserAction::AsusGpuMuxDisable => {}
         }
-        return Ok(action_required);
+        Ok(action_required)
     }
 }

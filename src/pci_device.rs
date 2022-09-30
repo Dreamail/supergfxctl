@@ -13,7 +13,7 @@ use zvariant_derive::Type;
 
 const PCI_BUS_PATH: &str = "/sys/bus/pci";
 
-#[derive(Debug, Type, PartialEq, Copy, Clone, Deserialize, Serialize)]
+#[derive(Debug, Type, PartialEq, Eq, Copy, Clone, Deserialize, Serialize)]
 pub enum GfxPower {
     Active,
     Suspended,
@@ -47,7 +47,7 @@ impl From<&GfxPower> for &str {
     }
 }
 
-#[derive(Debug, Type, PartialEq, Copy, Clone, Deserialize, Serialize)]
+#[derive(Debug, Type, PartialEq, Eq, Copy, Clone, Deserialize, Serialize)]
 pub enum GfxVendor {
     Nvidia,
     Amd,
@@ -99,7 +99,7 @@ impl From<&GfxVendor> for &str {
     }
 }
 
-#[derive(Debug, Type, PartialEq, Copy, Clone, Deserialize, Serialize)]
+#[derive(Debug, Type, PartialEq, Eq, Copy, Clone, Deserialize, Serialize)]
 pub enum GfxMode {
     Hybrid,
     Integrated,
@@ -143,7 +143,7 @@ impl From<&GfxMode> for &str {
     }
 }
 
-#[derive(Debug, Type, PartialEq, Copy, Clone, Deserialize, Serialize)]
+#[derive(Debug, Type, PartialEq, Eq, Copy, Clone, Deserialize, Serialize)]
 pub enum GfxRequiredUserAction {
     Logout,
     Integrated,
@@ -229,7 +229,7 @@ impl Device {
                     let class = class.to_string_lossy();
                     // Match only      Nvidia or AMD
                     if id.starts_with("10DE") || id.starts_with("1002") {
-                        if let Some(vendor) = id.split(":").nth(0) {
+                        if let Some(vendor) = id.split(':').next() {
                             // DGPU CHECK
                             // Assumes that the enumeration is always in order, so things on the same bus after the dGPU
                             // are attached. Look at parent system name to match
@@ -343,7 +343,7 @@ impl Device {
 }
 
 /// Control whether a device uses, or does not use, runtime power management.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum RuntimePowerManagement {
     Auto,
     On,
@@ -436,7 +436,7 @@ impl DiscreetGpu {
     }
 
     pub fn get_runtime_status(&self) -> Result<GfxPower, GfxError> {
-        if self.devices.len() > 0 {
+        if !self.devices.is_empty() {
             debug!("get_runtime_status: {:?}", self.devices[self.dgpu_index]);
             if self.vendor != GfxVendor::Unknown {
                 return self.devices[self.dgpu_index].get_runtime_status();
