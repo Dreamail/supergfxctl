@@ -243,12 +243,13 @@ impl CtrlGraphics {
             debug!("ASUS dgpu_disable found");
             if asus_use_dgpu_disable && matches!(mode, GfxMode::Hybrid | GfxMode::Compute) {
                 // re-enable the ASUS dgpu
+                // Ignore the error if there is one. Sometimes the kernel causes an I/O error and I'm
+                // not sure why yet. But the dgpu seems to change..
                 asus_dgpu_set_disabled(false)
                     .map_err(|e| {
                         warn!("Re-enable ASUS dGPU failed: {e}");
-                        e
                     })
-                    .unwrap();
+                    .ok();
             } else {
                 match asus_dgpu_disabled() {
                     Ok(disabled) => {
