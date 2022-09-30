@@ -33,7 +33,7 @@ First you need to install the dev packages required.
 
 **Install Rust**
 ```
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source ~/.cargo/env
 ```
 
