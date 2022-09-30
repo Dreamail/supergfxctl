@@ -19,13 +19,13 @@ impl CtrlGraphics {
     }
 
     /// Get the current graphics mode:
-    /// enum {
+    /// enum GfxMode {
     ///     Hybrid,
-    ///     Dedicated,
     ///     Integrated,
     ///     Compute,
     ///     Vfio,
     ///     Egpu,
+    ///     None,
     /// }
     async fn mode(&self) -> zbus::fdo::Result<GfxMode> {
         let config = self.config.lock().await;
@@ -40,16 +40,17 @@ impl CtrlGraphics {
         Ok(self.get_supported_modes().await)
     }
 
-    /// Get the vendor nae of the dGPU
+    /// Get the vendor name of the dGPU
     async fn vendor(&self) -> zbus::fdo::Result<String> {
         Ok(<&str>::from(self.get_gfx_vendor().await).to_string())
     }
 
     /// Get the current power status:
-    /// enum {
+    /// enum GfxPower {
     ///     Active,
     ///     Suspended,
     ///     Off,
+    ///     AsusDisabled,
     ///     Unknown,
     /// }
     async fn power(&self) -> zbus::fdo::Result<GfxPower> {
@@ -61,20 +62,20 @@ impl CtrlGraphics {
     }
 
     /// Set the graphics mode:
-    /// enum {
+    /// enum GfxMode {
     ///     Hybrid,
-    ///     Dedicated,
     ///     Integrated,
     ///     Compute,
     ///     Vfio,
     ///     Egpu,
+    ///     None,
     /// }
     ///
     /// Returns action required:
-    /// enum {
+    /// enum GfxRequiredUserAction {
     ///     Logout,
-    ///     Reboot,
     ///     Integrated,
+    ///     AsusGpuMuxDisable,
     ///     None,
     /// }
     async fn set_mode(
