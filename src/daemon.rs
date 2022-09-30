@@ -1,14 +1,10 @@
 use std::{env, sync::Arc, time::Duration};
 
-use log::{error, info, warn};
+use log::{error, info};
 use std::io::Write;
 use supergfxctl::{
-    config::GfxConfig,
-    controller::CtrlGraphics,
-    error::GfxError,
-    pci_device::GfxMode,
-    special_asus::{get_asus_gpu_mux_mode, has_asus_gpu_mux, AsusGpuMuxMode},
-    CONFIG_PATH, DBUS_DEST_NAME, DBUS_IFACE_PATH,
+    config::GfxConfig, controller::CtrlGraphics, error::GfxError, CONFIG_PATH, DBUS_DEST_NAME,
+    DBUS_IFACE_PATH, VERSION,
 };
 use tokio::time::sleep;
 use zbus::{export::futures_util::lock::Mutex, Connection};
@@ -38,6 +34,8 @@ async fn main() -> Result<(), GfxError> {
         return Ok(());
     }
 
+    info!("Daemon version: {VERSION}");
+
     start_daemon().await
 }
 
@@ -53,14 +51,9 @@ async fn start_daemon() -> Result<(), GfxError> {
     // Graphics switching requires some checks on boot specifically for g-sync capable laptops
     match CtrlGraphics::new(config.clone()) {
         Ok(mut ctrl) => {
-            // Need to check if a laptop has the dedicated gfx switch
-            if has_asus_gpu_mux() {
-                do_asus_laptop_checks(&mut ctrl, config).await?;
-            } else {
-                ctrl.reload()
-                    .await
-                    .unwrap_or_else(|err| error!("Gfx controller: {}", err));
-            }
+            ctrl.reload()
+                .await
+                .unwrap_or_else(|err| error!("Gfx controller: {}", err));
 
             connection
                 .object_server()
@@ -86,28 +79,4 @@ async fn start_daemon() -> Result<(), GfxError> {
         // }
         sleep(Duration::from_secs(1)).await;
     }
-}
-
-async fn do_asus_laptop_checks(
-    ctrl: &mut CtrlGraphics,
-    config: Arc<Mutex<GfxConfig>>,
-) -> Result<(), GfxError> {
-    if let Ok(ded) = get_asus_gpu_mux_mode() {
-        let ctrl = ctrl.dgpu_arc_clone();
-        let mut dgpu = ctrl.lock().await;
-        let config = config.lock().await;
-        if ded == AsusGpuMuxMode::Dedicated {
-            warn!("Dedicated GFX toggle is on but driver mode is not nvidia \nSetting to nvidia driver mode");
-            CtrlGraphics::do_mode_setup_tasks(GfxMode::Hybrid, false, false, &mut dgpu)?;
-        } else {
-            info!("Dedicated GFX toggle is off");
-            CtrlGraphics::do_mode_setup_tasks(
-                config.mode,
-                false,
-                config.asus_use_dgpu_disable,
-                &mut dgpu,
-            )?;
-        }
-    }
-    Ok(())
 }

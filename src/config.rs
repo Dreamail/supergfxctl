@@ -170,10 +170,10 @@ fn create_vfio_conf(devices: &DiscreetGpu) -> Vec<u8> {
     conf
 }
 
-pub(crate) fn create_modprobe_conf(vendor: GfxMode, devices: &DiscreetGpu) -> Result<(), GfxError> {
+pub(crate) fn create_modprobe_conf(mode: GfxMode, devices: &DiscreetGpu) -> Result<(), GfxError> {
     info!("Writing {}", MODPROBE_PATH);
-    let content = match vendor {
-        GfxMode::Hybrid | GfxMode::Egpu => {
+    let content = match mode {
+        GfxMode::Integrated | GfxMode::Hybrid | GfxMode::Egpu => {
             if devices.is_nvidia() {
                 let mut base = MODPROBE_NVIDIA_BASE.to_vec();
                 base.append(&mut MODPROBE_NVIDIA_DRM_MODESET.to_vec());
@@ -186,9 +186,8 @@ pub(crate) fn create_modprobe_conf(vendor: GfxMode, devices: &DiscreetGpu) -> Re
             }
         }
         GfxMode::Vfio => create_vfio_conf(devices),
-        GfxMode::Integrated => MODPROBE_INTEGRATED.to_vec(),
         GfxMode::Compute => MODPROBE_NVIDIA_BASE.to_vec(),
-        GfxMode::None => vec![],
+        GfxMode::None | GfxMode::AsusMuxDiscreet => vec![],
     };
 
     let mut file = std::fs::OpenOptions::new()

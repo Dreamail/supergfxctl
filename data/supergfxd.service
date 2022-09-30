@@ -2,7 +2,9 @@
 Description=SUPERGFX
 StartLimitInterval=200
 StartLimitBurst=2
+Before=graphical.target
 Before=multi-user.target
+Before=display-manager.service
 Before=nvidia-powerd.service
 
 [Service]
@@ -18,4 +20,4 @@ SELinuxContext=system_u:system_r:unconfined_t:s0
 #SELinuxContext=system_u:object_r:modules_object_t:s0
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=getty.target

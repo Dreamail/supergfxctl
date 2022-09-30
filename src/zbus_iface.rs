@@ -6,6 +6,7 @@ use zvariant::ObjectPath;
 use crate::{
     config::GfxConfigDbus,
     pci_device::{GfxMode, GfxPower, GfxRequiredUserAction},
+    special_asus::{get_asus_gpu_mux_mode, AsusGpuMuxMode},
     DBUS_IFACE_PATH, VERSION,
 };
 
@@ -28,6 +29,11 @@ impl CtrlGraphics {
     ///     None,
     /// }
     async fn mode(&self) -> zbus::fdo::Result<GfxMode> {
+        if let Ok(state) = get_asus_gpu_mux_mode() {
+            if state == AsusGpuMuxMode::Discreet {
+                return Ok(GfxMode::AsusMuxDiscreet);
+            }
+        }
         let config = self.config.lock().await;
         self.get_gfx_mode(&config).map_err(|err| {
             error!("{}", err);
@@ -37,6 +43,11 @@ impl CtrlGraphics {
 
     /// Get list of supported modes
     async fn supported(&self) -> zbus::fdo::Result<Vec<GfxMode>> {
+        if let Ok(state) = get_asus_gpu_mux_mode() {
+            if state == AsusGpuMuxMode::Discreet {
+                return Ok(vec![GfxMode::AsusMuxDiscreet]);
+            }
+        }
         Ok(self.get_supported_modes().await)
     }
 
@@ -54,6 +65,11 @@ impl CtrlGraphics {
     ///     Unknown,
     /// }
     async fn power(&self) -> zbus::fdo::Result<GfxPower> {
+        if let Ok(state) = get_asus_gpu_mux_mode() {
+            if state == AsusGpuMuxMode::Discreet {
+                return Ok(GfxPower::AsusMuxDiscreet);
+            }
+        }
         let dgpu = self.dgpu.lock().await;
         dgpu.get_runtime_status().map_err(|err| {
             error!("{}", err);

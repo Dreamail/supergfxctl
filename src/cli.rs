@@ -82,7 +82,7 @@ fn do_gfx(command: CliStart) -> Result<(), GfxError> {
     let proxy = DaemonProxyBlocking::new(&conn)?;
 
     if let Some(mode) = command.mode {
-        if has_asus_gpu_mux() && get_asus_gpu_mux_mode()? == AsusGpuMuxMode::Dedicated {
+        if has_asus_gpu_mux() && get_asus_gpu_mux_mode()? == AsusGpuMuxMode::Discreet {
             eprintln!("You can not change modes until you turn the GPU MUX off and reboot");
             std::process::exit(1);
         }
