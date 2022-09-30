@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0-rc1] - 2022-09-30
+### Changed
+- Using udev internally to find devices rather than manually scanning directories
+- Better support for ASUS dgpu_disable and egpu_enable
+- Check if asus gpu_mux_mode exists, and value of it
+- Removed dedicated mode as it causes more trouble than it is worth
+- Config option `asus_use_dgpu_enable` defaults to on if ASUS dgpu_disable exists
+- Update dependencies
+
 ## [4.0.5] - 2022-06-22
 ### Changed
 - Fix interaction with lspci >= 3.8.0 (Author: Anton Shangareev)

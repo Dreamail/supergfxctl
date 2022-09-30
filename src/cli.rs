@@ -1,16 +1,15 @@
 //! Basic CLI tool to control the `supergfxd` daemon
 
-use std::{env::args, process::Command, sync::mpsc::channel};
+use std::{env::args, process::Command};
 use supergfxctl::{
     error::GfxError,
-    gfx_vendors::{GfxMode, GfxRequiredUserAction},
-    nvidia_drm_modeset,
-    special_asus::{get_asus_gpu_mux_mode, has_asus_gpu_mux},
-    zbus_proxy::GfxProxy,
+    pci_device::{GfxMode, GfxRequiredUserAction},
+    special_asus::{get_asus_gpu_mux_mode, has_asus_gpu_mux, AsusGpuMuxMode},
+    zbus_proxy::DaemonProxyBlocking,
 };
 
 use gumdrop::Options;
-use zbus::Connection;
+use zbus::blocking::Connection;
 
 #[derive(Default, Clone, Copy, Options)]
 struct CliStart {
@@ -47,19 +46,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     eprintln!("\x1b[0;31msupergfxd is not running, start it with `systemctl start supergfxd\x1b[0m");
                 } else {
                     eprintln!("Please check `journalctl -b -u supergfxd`, and `systemctl status supergfxd`");
-                    match &err {
-                        GfxError::Zbus(err) => {
-                            match err {
-                                zbus::Error::MethodError(_,s,_) => {
-                                    if let Some(text) = s {
-                                        eprintln!("\x1b[0;31m{}\x1b[0m", text);
-                                        std::process::exit(1);
-                                    }
-                                }
-                                _ => {},
-                            }
-                        }
-                        _ => {},
+                    if let GfxError::Zbus(zbus::Error::MethodError(_,Some(text),_)) = &err {
+                                eprintln!("\x1b[0;31m{}\x1b[0m", text);
+                                std::process::exit(1);
                     }
                 }
                 eprintln!("Error: {}", err);
@@ -89,68 +78,61 @@ fn do_gfx(command: CliStart) -> Result<(), GfxError> {
         println!("{}", command.self_usage());
     }
 
-    let conn = Connection::new_system()?;
-    let proxy = GfxProxy::new(&conn)?;
-
-    let (tx, rx) = channel();
-    proxy.connect_notify_action(tx)?;
+    let conn = Connection::system()?;
+    let proxy = DaemonProxyBlocking::new(&conn)?;
 
     if let Some(mode) = command.mode {
-        if has_asus_gpu_mux() && get_asus_gpu_mux_mode()? == 1 {
-            eprintln!("You can not change modes until you turn dedicated/G-Sync off and reboot");
+        if has_asus_gpu_mux() && get_asus_gpu_mux_mode()? == AsusGpuMuxMode::Dedicated {
+            eprintln!("You can not change modes until you turn the GPU MUX off and reboot");
             std::process::exit(1);
         }
 
-        proxy.write_mode(&mode)?;
-
-        loop {
-            proxy.next_signal()?;
-
-            if let Ok(res) = rx.try_recv() {
-                match res {
-                    GfxRequiredUserAction::Integrated => {
-                        eprintln!(
-                            "You must change to Integrated before you can change to {}",
-                            <&str>::from(mode)
-                        );
-                        std::process::exit(1);
-                    }
-                    GfxRequiredUserAction::Logout | GfxRequiredUserAction::Reboot => {
-                        if nvidia_drm_modeset()? {
-                            println!("\x1b[0;31mRebootless mode requires nvidia-drm.modeset=0 to be set on the kernel cmdline\n\x1b[0m");
-                        }
-                        println!(
-                            "Graphics mode changed to {}. Required user action is: {}",
-                            <&str>::from(mode),
-                            <&str>::from(&res)
-                        );
-                    }
-                    GfxRequiredUserAction::None => {
-                        println!("Graphics mode changed to {}", <&str>::from(mode));
-                    }
-                }
+        let res = proxy.set_mode(&mode)?;
+        match res {
+            GfxRequiredUserAction::Integrated => {
+                eprintln!(
+                    "You must change to Integrated before you can change to {}",
+                    <&str>::from(mode)
+                );
+                std::process::exit(1);
             }
-            std::process::exit(0)
+            GfxRequiredUserAction::Logout => {
+                println!(
+                    "Graphics mode changed to {}. Required user action is: {}",
+                    <&str>::from(mode),
+                    <&str>::from(res)
+                );
+            }
+            GfxRequiredUserAction::None => {
+                println!("Graphics mode changed to {}", <&str>::from(mode));
+            }
+            GfxRequiredUserAction::AsusGpuMuxDisable => {
+                println!(
+                    "{:?}",
+                    <&str>::from(GfxRequiredUserAction::AsusGpuMuxDisable)
+                );
+            }
         }
     }
+
     if command.version {
-        let res = proxy.get_version()?;
+        let res = proxy.version()?;
         println!("{}", res);
     }
     if command.get {
-        let res = proxy.get_mode()?;
+        let res = proxy.mode()?;
         println!("{}", <&str>::from(res));
     }
     if command.supported {
-        let res = proxy.get_supported_modes()?;
+        let res = proxy.supported()?;
         println!("{:?}", res);
     }
     if command.vendor {
-        let res = proxy.get_vendor()?;
+        let res = proxy.vendor()?;
         println!("{}", res);
     }
     if command.status {
-        let res = proxy.get_pwr()?;
+        let res = proxy.power()?;
         println!("{}", <&str>::from(&res));
     }
     if command.pend_action {

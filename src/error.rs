@@ -1,10 +1,12 @@
 use std::fmt;
-use std::{error, path::PathBuf, process::ExitStatus};
+use std::{error, path::PathBuf};
 
 #[derive(Debug)]
 pub enum GfxError {
     ParseVendor,
-    DisplayManagerAction(String, ExitStatus),
+    DgpuNotFound,
+    Udev(String, std::io::Error),
+    DisplayManagerAction(String),
     DisplayManagerTimeout(String),
     AsusGpuMuxModeDedicated,
     VfioBuiltin,
@@ -32,8 +34,13 @@ impl fmt::Display for GfxError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             GfxError::ParseVendor => write!(f, "Could not parse vendor name"),
-            GfxError::DisplayManagerAction(action, status) => {
-                write!(f, "Display-manager action {} failed: {}", action, status)
+            GfxError::DgpuNotFound => write!(
+                f,
+                "Didn't find dgpu. If this is an ASUS ROG/TUF laptop this is okay"
+            ),
+            GfxError::Udev(msg, err) => write!(f, "udev: {msg}: {err}"),
+            GfxError::DisplayManagerAction(action) => {
+                write!(f, "Display-manager action {} failed", action)
             }
             GfxError::DisplayManagerTimeout(state) => {
                 write!(f, "Timed out waiting for display-manager {} state", state)

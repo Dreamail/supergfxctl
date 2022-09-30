@@ -4,10 +4,10 @@ use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use zvariant_derive::Type;
 
-use crate::config_old::GfxConfig300;
+use crate::config_old::{GfxConfig300, GfxConfig405};
 use crate::error::GfxError;
-use crate::gfx_devices::DiscreetGpu;
-use crate::gfx_vendors::{GfxMode, GfxRequiredUserAction};
+use crate::pci_device::{DiscreetGpu, GfxMode, GfxRequiredUserAction};
+use crate::special_asus::asus_dgpu_exists;
 use crate::{
     MODPROBE_INTEGRATED, MODPROBE_NVIDIA_BASE, MODPROBE_NVIDIA_DRM_MODESET, MODPROBE_PATH,
     MODPROBE_VFIO,
@@ -23,6 +23,7 @@ pub struct GfxConfigDbus {
     pub always_reboot: bool,
     pub no_logind: bool,
     pub logout_timeout_s: u64,
+    pub asus_use_dgpu_enable: bool,
 }
 
 impl From<&GfxConfig> for GfxConfigDbus {
@@ -35,6 +36,7 @@ impl From<&GfxConfig> for GfxConfigDbus {
             always_reboot: c.always_reboot,
             no_logind: c.no_logind,
             logout_timeout_s: c.logout_timeout_s,
+            asus_use_dgpu_enable: c.asus_use_dgpu_disable,
         }
     }
 }
@@ -66,6 +68,8 @@ pub struct GfxConfig {
     pub no_logind: bool,
     /// The timeout in seconds to wait for all user graphical sessions to end. Default is 3 minutes, 0 = infinite. Ignored if `no_logind` or `always_reboot` is set.
     pub logout_timeout_s: u64,
+    /// Specific to ASUS ROG/TUF laptops
+    pub asus_use_dgpu_disable: bool,
 }
 
 impl GfxConfig {
@@ -82,6 +86,7 @@ impl GfxConfig {
             always_reboot: false,
             no_logind: false,
             logout_timeout_s: 180,
+            asus_use_dgpu_disable: asus_dgpu_exists(),
         }
     }
 
@@ -103,6 +108,10 @@ impl GfxConfig {
                 config.config_path = config_path;
             } else if let Ok(data) = serde_json::from_str(&buf) {
                 let old: GfxConfig300 = data;
+                config = old.into();
+                config.config_path = config_path;
+            } else if let Ok(data) = serde_json::from_str(&buf) {
+                let old: GfxConfig405 = data;
                 config = old.into();
                 config.config_path = config_path;
             } else {
@@ -146,17 +155,11 @@ impl GfxConfig {
 /// Creates the full modprobe.conf required for vfio pass-through
 fn create_vfio_conf(devices: &DiscreetGpu) -> Vec<u8> {
     let mut vifo = MODPROBE_VFIO.to_vec();
-    for (f_count, func) in devices.functions().iter().enumerate() {
-        let vendor = func.vendor().unwrap();
-        let device = func.device().unwrap();
+    for (f_count, func) in devices.devices().iter().enumerate() {
         unsafe {
-            vifo.append(format!("{:x}", vendor).as_mut_vec());
+            vifo.append(func.pci_id().to_owned().as_mut_vec());
         }
-        vifo.append(&mut vec![b':']);
-        unsafe {
-            vifo.append(format!("{:x}", device).as_mut_vec());
-        }
-        if f_count < devices.functions().len() - 1 {
+        if f_count < devices.devices().len() - 1 {
             vifo.append(&mut vec![b',']);
         }
     }
