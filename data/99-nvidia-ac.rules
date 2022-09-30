@@ -1,0 +1,4 @@
+# Stop nvidia_powerd on battery
+SUBSYSTEM=="power_supply",ENV{POWER_SUPPLY_ONLINE}=="0",RUN+="/usr/bin/systemctl --no-block stop nvidia-powerd.service"
+# Start nvidia_powerd on AC
+SUBSYSTEM=="power_supply",ENV{POWER_SUPPLY_ONLINE}=="1",RUN+="/usr/bin/systemctl --no-block start nvidia-powerd.service"

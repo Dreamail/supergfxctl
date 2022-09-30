@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- 99-nvidia-ac.rules udev rule added to ./data, this rule is useful for stopping `nvidia-powerd` on battery as some nvidia based laptops are poorly behaved when it is active
 
 ## [5.0.0-rc1] - 2022-09-30
 ### Changed
@@ -12,8 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Better support for ASUS dgpu_disable and egpu_enable
 - Check if asus gpu_mux_mode exists, and value of it
 - Removed dedicated mode as it causes more trouble than it is worth
-- Config option `asus_use_dgpu_enable` defaults to on if ASUS dgpu_disable exists
+- Config option `asus_use_dgpu_disable` defaults to on if ASUS dgpu_disable exists
 - Update dependencies
+- nvidia.modeset=0 not required for rebootless switching now
 
 ## [4.0.5] - 2022-06-22
 ### Changed

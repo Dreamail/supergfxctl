@@ -48,7 +48,7 @@ impl CtrlGraphics {
     pub async fn reload(&mut self) -> Result<(), GfxError> {
         let mut config = self.config.lock().await;
         let vfio_enable = config.vfio_enable;
-        let use_asus_dgpu_disable = config.asus_use_dgpu_disable;
+        let asus_use_dgpu_disable = config.asus_use_dgpu_disable;
         let vfio_save = config.vfio_save;
         let compute_save = config.compute_save;
 
@@ -81,7 +81,7 @@ impl CtrlGraphics {
         }
 
         let mut dgpu = self.dgpu.lock().await;
-        Self::do_mode_setup_tasks(mode, vfio_enable, use_asus_dgpu_disable, &mut dgpu)?;
+        Self::do_mode_setup_tasks(mode, vfio_enable, asus_use_dgpu_disable, &mut dgpu)?;
         // Self::mode_change_loop(
         //     mode,
         //     self.dgpu.clone(),
@@ -236,12 +236,12 @@ impl CtrlGraphics {
     pub fn do_mode_setup_tasks(
         mode: GfxMode,
         vfio_enable: bool,
-        use_asus_dgpu_disable: bool,
+        asus_use_dgpu_disable: bool,
         devices: &mut DiscreetGpu,
     ) -> Result<(), GfxError> {
         if asus_dgpu_exists() && matches!(mode, GfxMode::Hybrid | GfxMode::Compute) {
             debug!("ASUS dgpu_disable found");
-            if use_asus_dgpu_disable && matches!(mode, GfxMode::Hybrid | GfxMode::Compute) {
+            if asus_use_dgpu_disable && matches!(mode, GfxMode::Hybrid | GfxMode::Compute) {
                 // re-enable the ASUS dgpu
                 asus_dgpu_set_disabled(false)
                     .map_err(|e| {
@@ -252,7 +252,7 @@ impl CtrlGraphics {
             } else {
                 match asus_dgpu_disabled() {
                     Ok(disabled) => {
-                        error!("dgpu_disable is {disabled} and config option use_asus_dgpu_disable is {use_asus_dgpu_disable}, can't set {mode:?}");
+                        error!("dgpu_disable is {disabled} and config option asus_use_dgpu_disable is {asus_use_dgpu_disable}, can't set {mode:?}");
                         return Err(GfxError::DgpuNotFound);
                     }
                     Err(e) => return Err(e),
@@ -281,7 +281,7 @@ impl CtrlGraphics {
                 if asus_egpu_exists() {
                     asus_egpu_set_enabled(false)?;
                 }
-                if asus_dgpu_exists() {
+                if asus_dgpu_exists() && asus_use_dgpu_disable {
                     asus_dgpu_set_disabled(false)?;
                 }
                 devices.do_driver_action("modprobe")?;
@@ -310,7 +310,7 @@ impl CtrlGraphics {
                 devices.do_driver_action("rmmod")?;
                 // This can only be done *after* the drivers are removed or a
                 // hardlock will be caused
-                if asus_dgpu_exists() {
+                if asus_dgpu_exists() && asus_use_dgpu_disable {
                     asus_dgpu_set_disabled(true)?;
                 }
                 if asus_egpu_exists() {
@@ -374,7 +374,7 @@ impl CtrlGraphics {
     ) -> Result<String, GfxError> {
         info!("display-manager thread started");
         let no_logind;
-        let use_asus_dgpu_disable;
+        let asus_use_dgpu_disable;
         let logout_timeout_s;
 
         const SLEEP_PERIOD: Duration = Duration::from_millis(100);
@@ -388,7 +388,7 @@ impl CtrlGraphics {
         {
             let config = config.lock().await;
             no_logind = config.no_logind;
-            use_asus_dgpu_disable = config.asus_use_dgpu_disable;
+            asus_use_dgpu_disable = config.asus_use_dgpu_disable;
             logout_timeout_s = config.logout_timeout_s;
             info!("logout_timeout_s = {}", logout_timeout_s);
         }
@@ -453,7 +453,7 @@ impl CtrlGraphics {
             Self::do_mode_setup_tasks(
                 GfxMode::Integrated,
                 vfio_enable,
-                use_asus_dgpu_disable,
+                asus_use_dgpu_disable,
                 &mut device,
             )?;
             if !no_logind {
@@ -461,7 +461,7 @@ impl CtrlGraphics {
             }
             mode_to_save = GfxMode::Integrated;
         } else {
-            Self::do_mode_setup_tasks(mode, vfio_enable, use_asus_dgpu_disable, &mut device)?;
+            Self::do_mode_setup_tasks(mode, vfio_enable, asus_use_dgpu_disable, &mut device)?;
             if !no_logind {
                 Self::do_display_manager_action("restart")?;
             }
@@ -523,12 +523,12 @@ impl CtrlGraphics {
             }
         }
 
-        let use_asus_dgpu_disable;
+        let asus_use_dgpu_disable;
         let vfio_enable;
         {
             let config = self.config.lock().await;
             vfio_enable = config.vfio_enable;
-            use_asus_dgpu_disable = config.asus_use_dgpu_disable;
+            asus_use_dgpu_disable = config.asus_use_dgpu_disable;
         }
 
         if !vfio_enable && matches!(mode, GfxMode::Vfio) {
@@ -559,7 +559,7 @@ impl CtrlGraphics {
             GfxRequiredUserAction::None => {
                 info!("mode change does not require logout");
                 let mut dgpu = self.dgpu.lock().await;
-                Self::do_mode_setup_tasks(mode, vfio_enable, use_asus_dgpu_disable, &mut dgpu)?;
+                Self::do_mode_setup_tasks(mode, vfio_enable, asus_use_dgpu_disable, &mut dgpu)?;
                 info!("Graphics mode changed to {}", <&str>::from(mode));
                 let mut config = self.config.lock().await;
                 config.tmp_mode = None;
