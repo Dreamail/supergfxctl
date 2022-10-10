@@ -6,13 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [5.0.0-rc2] - 2022-10-01
+## [5.0.0-rc8] - 2022-10-10
 ### Added
 - 99-nvidia-ac.rules udev rule added to ./data, this rule is useful for stopping `nvidia-powerd` on battery as some nvidia based laptops are poorly behaved when it is active
-### Changed
-- Some small bugfixes to prevent mutex hardlock
-
-## [5.0.0-rc1] - 2022-09-30
 ### Changed
 - Using udev internally to find devices rather than manually scanning directories
 - Better support for ASUS dgpu_disable and egpu_enable
