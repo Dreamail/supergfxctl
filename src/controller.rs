@@ -11,6 +11,7 @@ use std::{
 use tokio::time::sleep;
 use zbus::export::futures_util::lock::Mutex;
 
+use crate::pci_device::rescan_pci_bus;
 use crate::{
     config::create_modprobe_conf,
     error::GfxError,
@@ -300,16 +301,16 @@ impl CtrlGraphics {
         // Don't do a rescan unless the dev list is empty. This might be the case if
         // asus dgpu_disable is set before the daemon starts. But in general the daemon
         // should have the correct device on boot and retain that.
-        let mut do_rescan = devices.devices().is_empty();
+        let mut do_find_device = devices.devices().is_empty();
         for dev in devices.devices() {
             if dev.is_dgpu() {
-                do_rescan = false;
+                do_find_device = false;
                 break;
             }
-            do_rescan = true;
+            do_find_device = true;
         }
 
-        if do_rescan {
+        if do_find_device {
             info!("do_rescan: Device rescan required");
             if asus_dgpu_exists() {
                 debug!("do_rescan: ASUS dgpu_disable found");
@@ -337,7 +338,11 @@ impl CtrlGraphics {
                 Ok(dev) => *devices = dev,
                 Err(e) => warn!("do_rescan: tried to reset Unknown dgpu status/devices: {e:?}"),
             }
+        } else {
+            info!("do_rescan: Rescanning PCI bus");
+            rescan_pci_bus()?; // should force re-attach of driver
         }
+
         Ok(())
     }
 

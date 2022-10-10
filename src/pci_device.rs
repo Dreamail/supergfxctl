@@ -400,7 +400,7 @@ pub struct DiscreetGpu {
 
 impl DiscreetGpu {
     pub fn new() -> Result<DiscreetGpu, GfxError> {
-        info!("Rescanning PCI bus");
+        info!("DiscreetGpu::new: Rescanning PCI bus");
         rescan_pci_bus()?;
 
         if let Ok(device) = Device::find() {
