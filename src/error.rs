@@ -8,7 +8,7 @@ pub enum GfxError {
     Udev(String, std::io::Error),
     DisplayManagerAction(String),
     DisplayManagerTimeout(String),
-    AsusGpuMuxModeDedicated,
+    AsusGpuMuxModeDiscreet,
     VfioBuiltin,
     VfioDisabled,
     MissingModule(String),
@@ -45,9 +45,9 @@ impl fmt::Display for GfxError {
             GfxError::DisplayManagerTimeout(state) => {
                 write!(f, "Timed out waiting for display-manager {} state", state)
             }
-            GfxError::AsusGpuMuxModeDedicated => write!(
+            GfxError::AsusGpuMuxModeDiscreet => write!(
                 f,
-                "Can not switch gfx modes when dedicated/G-Sync mode is active"
+                "Can not switch gfx modes when discreet/G-Sync mode is active"
             ),
             GfxError::VfioBuiltin => write!(
                 f,

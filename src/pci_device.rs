@@ -5,7 +5,9 @@ use std::str::FromStr;
 use std::{fs::write, path::PathBuf};
 
 use crate::error::GfxError;
-use crate::special_asus::asus_dgpu_exists;
+use crate::special_asus::{
+    asus_dgpu_disabled, asus_dgpu_exists, get_asus_gpu_mux_mode, has_asus_gpu_mux, AsusGpuMuxMode,
+};
 use crate::{do_driver_action, NVIDIA_DRIVERS};
 
 use serde_derive::{Deserialize, Serialize};
@@ -19,6 +21,7 @@ pub enum GfxPower {
     Suspended,
     Off,
     AsusDisabled,
+    AsusMuxDiscreet,
     Unknown,
 }
 
@@ -42,6 +45,7 @@ impl From<&GfxPower> for &str {
             GfxPower::Suspended => "suspended",
             GfxPower::Off => "off",
             GfxPower::AsusDisabled => "dgpu_disabled",
+            GfxPower::AsusMuxDiscreet => "asus_mux_discreet",
             GfxPower::Unknown => "unknown",
         }
     }
@@ -106,6 +110,7 @@ pub enum GfxMode {
     Compute,
     Vfio,
     Egpu,
+    AsusMuxDiscreet,
     None,
 }
 
@@ -132,6 +137,7 @@ impl From<GfxMode> for &str {
             GfxMode::Compute => "compute",
             GfxMode::Vfio => "vfio",
             GfxMode::Egpu => "egpu",
+            GfxMode::AsusMuxDiscreet => "asus_mux_discreet",
             GfxMode::None => "none",
         }
     }
@@ -234,25 +240,32 @@ impl Device {
                             // Assumes that the enumeration is always in order, so things on the same bus after the dGPU
                             // are attached. Look at parent system name to match
                             if let Some(boot_vga) = device.attribute_value("boot_vga") {
-                                if class.starts_with("30") && boot_vga == "0" {
-                                    info!("Found dgpu {id} at {:?}", device.sysname());
-                                    parent = device
-                                        .sysname()
-                                        .to_string_lossy()
-                                        .trim_end_matches(char::is_numeric)
-                                        .trim_end_matches('.')
-                                        .to_string();
-                                    devices.push(Self {
-                                        path: PathBuf::from(device.syspath()),
-                                        vendor: vendor.into(),
-                                        is_dgpu: true,
-                                        name: sysname.to_string(),
-                                        pci_id: id.to_string(),
-                                    });
+                                if class.starts_with("30") {
+                                    if boot_vga == "0" {
+                                        info!("Found dgpu {id} at {:?}", device.sysname());
+                                        parent = device
+                                            .sysname()
+                                            .to_string_lossy()
+                                            .trim_end_matches(char::is_numeric)
+                                            .trim_end_matches('.')
+                                            .to_string();
+                                        devices.push(Self {
+                                            path: PathBuf::from(device.syspath()),
+                                            vendor: vendor.into(),
+                                            is_dgpu: true,
+                                            name: sysname.to_string(),
+                                            pci_id: id.to_string(),
+                                        });
+                                    } else {
+                                        info!(
+                                            "Device {id} at {:?} has no boot_vga attr",
+                                            device.sysname()
+                                        );
+                                    }
                                 }
                             }
                             // Add next devices only if on same parent as dGPU
-                            else if sysname.contains(&parent) {
+                            else if !parent.is_empty() && sysname.contains(&parent) {
                                 info!("Found additional device {id} at {:?}", device.sysname());
                                 devices.push(Self {
                                     path: PathBuf::from(device.syspath()),
@@ -310,8 +323,13 @@ impl Device {
         let mut path = self.path.clone();
         path.push("power");
         path.push("control");
-        debug!("set_runtime_pm: {path:?}");
-        Self::write_file(path, <&str>::from(state).as_bytes())
+        if path.exists() {
+            debug!("set_runtime_pm: {path:?}");
+            Self::write_file(path, <&str>::from(state).as_bytes())?;
+        } else {
+            debug!("set_runtime_pm: {path:?} doesn't exist, device may have been removed (can be ignored)");
+        }
+        Ok(())
     }
 
     pub fn get_runtime_status(&self) -> Result<GfxPower, GfxError> {
@@ -382,18 +400,16 @@ pub struct DiscreetGpu {
 
 impl DiscreetGpu {
     pub fn new() -> Result<DiscreetGpu, GfxError> {
-        // first need to check asus specific paths
-
         info!("Rescanning PCI bus");
         rescan_pci_bus()?;
 
         if let Ok(device) = Device::find() {
             let mut vendor = GfxVendor::Unknown;
             let mut dgpu_index = 0;
-            for dev in device.iter().enumerate() {
-                if dev.1.is_dgpu() {
-                    dgpu_index = dev.0;
-                    vendor = dev.1.vendor();
+            for (idx, dev) in device.iter().enumerate() {
+                if dev.is_dgpu() {
+                    dgpu_index = idx;
+                    vendor = dev.vendor();
                 }
             }
             Ok(Self {
@@ -403,9 +419,24 @@ impl DiscreetGpu {
             })
         } else {
             let mut vendor = GfxVendor::Unknown;
-            if asus_dgpu_exists() {
+            if asus_dgpu_exists()
+                && if let Ok(c) = asus_dgpu_disabled() {
+                    c
+                } else {
+                    false
+                }
+            {
                 warn!("ASUS dGPU appears to be disabled");
                 vendor = GfxVendor::AsusDgpuDisabled;
+            } else if has_asus_gpu_mux()
+                && if let Ok(c) = get_asus_gpu_mux_mode() {
+                    c == AsusGpuMuxMode::Discreet
+                } else {
+                    false
+                }
+            {
+                warn!("ASUS GPU MUX is in discreet mode");
+                vendor = GfxVendor::Nvidia;
             }
             Ok(Self {
                 vendor,
@@ -438,10 +469,16 @@ impl DiscreetGpu {
     pub fn get_runtime_status(&self) -> Result<GfxPower, GfxError> {
         if !self.devices.is_empty() {
             debug!("get_runtime_status: {:?}", self.devices[self.dgpu_index]);
-            if self.vendor != GfxVendor::Unknown {
+            if self.vendor == GfxVendor::AsusDgpuDisabled {
+                warn!("ASUS dgpu status: {:?}", self.vendor);
+                return Ok(GfxPower::AsusDisabled);
+            } else if self.vendor != GfxVendor::Unknown {
                 return self.devices[self.dgpu_index].get_runtime_status();
             }
-            if self.vendor == GfxVendor::AsusDgpuDisabled {
+        } else if let Ok(disabled) = asus_dgpu_disabled() {
+            debug!("No dGPU tracked. Maybe booted with dgpu_disable set via Windows");
+            info!("Is ASUS laptop, dgpu_disable = {disabled}");
+            if disabled {
                 return Ok(GfxPower::AsusDisabled);
             }
         }
@@ -456,14 +493,17 @@ impl DiscreetGpu {
         ) {
             for dev in self.devices.iter() {
                 dev.set_runtime_pm(pm)?;
-                info!("Set PM on {:?} to {pm:?}", dev.path());
+                info!("set_runtime_pm: Set PM on {:?} to {pm:?}", dev.path());
             }
             return Ok(());
         }
         if self.vendor == GfxVendor::AsusDgpuDisabled {
+            info!("set_runtime_pm: ASUS dgpu_disable set, ignoring");
             return Ok(());
         }
-        Err(GfxError::NotSupported("Could not find dGPU".to_string()))
+        Err(GfxError::NotSupported(
+            "set_runtime_pm: Could not find dGPU".to_string(),
+        ))
     }
 
     pub fn unbind(&self) -> Result<(), GfxError> {

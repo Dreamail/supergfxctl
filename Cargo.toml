@@ -1,6 +1,6 @@
 [package]
 name = "supergfxctl"
-version = "5.0.0-rc1"
+version = "5.0.0-rc8"
 license = "MPL-2.0"
 readme = "README.md"
 authors = ["Luke <luke@ljones.dev>"]
@@ -10,6 +10,7 @@ documentation = "https://docs.rs/rog-anime"
 description = "Types useful for fancy keyboards on ASUS ROG laptops"
 keywords = ["graphics", "nvidia", "switching"]
 edition = "2021"
+rust-version = "1.64"
 exclude = ["data"]
 
 [features]
@@ -38,7 +39,7 @@ serde_derive = "^1.0"
 serde_json = "^1.0"
 log = "^0.4"
 
-zbus = "^3.2"
+zbus = { version = "^3.2", features = ["tokio"]}
 zvariant = "^3.2"
 zvariant_derive = "^3.2"
 logind-zbus = { version = "^3.0" }
