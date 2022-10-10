@@ -6,9 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [5.0.0-rc8] - 2022-10-10
+## [5.0.0-rc12] - 2022-10-18
 ### Added
-- 99-nvidia-ac.rules udev rule added to ./data, this rule is useful for stopping `nvidia-powerd` on battery as some nvidia based laptops are poorly behaved when it is active
+- 99-nvidia-ac.rules udev rule added to ./data, this rule is useful for stopping `nvidia-powerd` on battery as some nvidia based laptops are poorly behaved when it is active (OPTIONAL)
 ### Changed
 - Using udev internally to find devices rather than manually scanning directories
 - Better support for ASUS dgpu_disable and egpu_enable
@@ -17,7 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Config option `asus_use_dgpu_disable` defaults to on if ASUS dgpu_disable exists
 - Update dependencies
 - nvidia.modeset=0 not required for rebootless switching now
-
+- Cleaner systemd systemctl interaction
+- Try to ignore session zbus error on path object not existing
+- Fix: add logind sleep/resume task to ensure dgpu_disable is set
+- Ensure sufficient time passes before rescan on dgpu_disable change
+- Rework dgpu detection
+- Enable use of hotplug if available, and combine with dgpu_disable
+- Refactor ordering of device ops
+- Split unbind and remove
+    
 ## [4.0.5] - 2022-06-22
 ### Changed
 - Fix interaction with lspci >= 3.8.0 (Author: Anton Shangareev)

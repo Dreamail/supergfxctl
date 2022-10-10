@@ -2,8 +2,8 @@ use ::zbus::Connection;
 use log::{debug, error, info, warn};
 use logind_zbus::manager::{ManagerProxy, SessionInfo};
 use logind_zbus::session::{SessionClass, SessionProxy, SessionState, SessionType};
+use std::time::Duration;
 use std::time::Instant;
-use std::{process::Command, time::Duration};
 use std::{
     sync::atomic::{AtomicBool, Ordering},
     sync::Arc,
@@ -11,7 +11,8 @@ use std::{
 use tokio::time::sleep;
 use zbus::export::futures_util::lock::Mutex;
 
-use crate::pci_device::rescan_pci_bus;
+use crate::pci_device::{rescan_pci_bus, HotplugState};
+use crate::systemd::{SystemdUnitAction, SystemdUnitState};
 use crate::{
     config::create_modprobe_conf,
     error::GfxError,
@@ -20,6 +21,7 @@ use crate::{
         asus_dgpu_exists, asus_dgpu_set_disabled, asus_egpu_exists, asus_egpu_set_enabled,
         get_asus_gpu_mux_mode, has_asus_gpu_mux, AsusGpuMuxMode,
     },
+    systemd::{do_systemd_unit_action, wait_systemd_unit_state},
     *,
 };
 
@@ -92,6 +94,13 @@ impl CtrlGraphics {
                     return Ok(());
                 }
             }
+        }
+
+        if asus_use_dgpu_disable && asus_dgpu_exists() {
+            warn!("Has ASUS dGPU and dgpu_disable, toggling hotplug power off/on to prep");
+            let dgpu = self.dgpu.lock().await;
+            dgpu.set_hotplug(HotplugState::Off)?;
+            dgpu.set_hotplug(HotplugState::On)?;
         }
 
         let mode = get_kernel_cmdline_mode()?
@@ -204,65 +213,40 @@ impl CtrlGraphics {
         dgpu.vendor()
     }
 
-    fn do_display_manager_action(action: &str) -> Result<(), GfxError> {
-        let mut cmd = Command::new("systemctl");
-        cmd.arg(action);
-        cmd.arg(DISPLAY_MANAGER);
-
-        let status = cmd
-            .status()
-            .map_err(|err| GfxError::Command(format!("{:?}", cmd), err))?;
-        if !status.success() {
-            let msg = format!(
-                "systemctl {} {} failed: {:?}",
-                action, DISPLAY_MANAGER, status
-            );
-            return Err(GfxError::DisplayManagerAction(msg));
-        }
-        Ok(())
-    }
-
-    async fn wait_display_manager_state(state: &str) -> Result<(), GfxError> {
-        let mut cmd = Command::new("systemctl");
-        cmd.arg("is-active");
-        cmd.arg(DISPLAY_MANAGER);
-
-        let mut count = 0;
-
-        while count <= (4 * 3) {
-            // 3 seconds max
-            let output = cmd
-                .output()
-                .map_err(|err| GfxError::Command(format!("{:?}", cmd), err))?;
-            if output.stdout.starts_with(state.as_bytes()) {
-                return Ok(());
-            }
-            // fine to block here, nobody doing shit now
-            std::thread::sleep(std::time::Duration::from_millis(250));
-            count += 1;
-        }
-        Err(GfxError::DisplayManagerTimeout(state.into()))
-    }
-
     /// Check if the user has any graphical uiser sessions that are active or online
     async fn graphical_user_sessions_exist(
         connection: &Connection,
         sessions: &[SessionInfo],
     ) -> Result<bool, GfxError> {
         for session in sessions {
-            let session_proxy = SessionProxy::builder(connection)
+            // should ignore error such as:
+            // Zbus error: org.freedesktop.DBus.Error.UnknownObject: Unknown object '/org/freedesktop/login1/session/c2'
+            if let Ok(session_proxy) = SessionProxy::builder(connection)
                 .path(session.path())?
                 .build()
-                .await?;
-            if session_proxy.class().await? == SessionClass::User {
-                match session_proxy.type_().await? {
-                    SessionType::X11 | SessionType::Wayland | SessionType::MIR => {
-                        match session_proxy.state().await? {
-                            SessionState::Online | SessionState::Active => return Ok(true),
-                            SessionState::Closing => {}
+                .await
+                .map_err(|e| warn!("graphical_user_sessions_exist: builder: {e:?}"))
+            {
+                let class = session_proxy.class().await.map_err(|e| {
+                    warn!("graphical_user_sessions_exist: class: {e:?}");
+                    e
+                })?;
+                if class == SessionClass::User {
+                    match session_proxy.type_().await.map_err(|e| {
+                        warn!("graphical_user_sessions_exist: type_: {e:?}");
+                        e
+                    })? {
+                        SessionType::X11 | SessionType::Wayland | SessionType::MIR => {
+                            match session_proxy.state().await.map_err(|e| {
+                                warn!("graphical_user_sessions_exist: state: {e:?}");
+                                e
+                            })? {
+                                SessionState::Online | SessionState::Active => return Ok(true),
+                                SessionState::Closing => {}
+                            }
                         }
+                        _ => {}
                     }
-                    _ => {}
                 }
             }
         }
@@ -363,8 +347,8 @@ impl CtrlGraphics {
         let debug = |s: &str| debug!("do_mode_setup_tasks: {s}");
         let warn = |s: &str| warn!("do_mode_setup_tasks: {s}");
 
-        Self::do_rescan(mode, asus_use_dgpu_disable, devices)?;
         create_modprobe_conf(mode, devices)?;
+        Self::do_rescan(mode, asus_use_dgpu_disable, devices)?;
 
         match mode {
             GfxMode::Hybrid | GfxMode::Compute => {
@@ -374,6 +358,7 @@ impl CtrlGraphics {
                         do_driver_action(driver, "rmmod")?;
                     }
                 }
+                devices.set_hotplug(HotplugState::On)?;
                 if asus_egpu_exists() {
                     asus_egpu_set_enabled(false)?;
                 }
@@ -387,9 +372,11 @@ impl CtrlGraphics {
             GfxMode::Vfio => {
                 debug!("Mode match: GfxMode::Vfio");
                 if vfio_enable {
-                    //devices.unbind()?;
-                    do_driver_action("nouveau", "rmmod")?;
+                    toggle_nvidia_powerd(false, devices.vendor())?;
+                    kill_nvidia_lsof()?;
+                    devices.unbind()?;
                     devices.do_driver_action("rmmod")?;
+                    do_driver_action("nouveau", "rmmod")?;
                     do_driver_action("vfio-pci", "modprobe")?;
                 } else {
                     return Err(GfxError::VfioDisabled);
@@ -405,8 +392,10 @@ impl CtrlGraphics {
                 }
                 toggle_nvidia_powerd(false, devices.vendor())?;
                 kill_nvidia_lsof()?;
-                //devices.unbind()?;
+                devices.unbind().ok();
+                devices.remove().ok();
                 devices.do_driver_action("rmmod")?;
+                devices.set_hotplug(HotplugState::Off)?;
                 // This can only be done *after* the drivers are removed or a
                 // hardlock will be caused
                 if asus_dgpu_exists() && asus_use_dgpu_disable {
@@ -431,6 +420,7 @@ impl CtrlGraphics {
                     }
                 }
 
+                devices.set_hotplug(HotplugState::Off)?;
                 asus_egpu_set_enabled(true)?;
                 devices.do_driver_action("modprobe")?;
                 toggle_nvidia_powerd(true, devices.vendor())?;
@@ -496,7 +486,7 @@ impl CtrlGraphics {
                 {
                     let detail = format!("Time ({} seconds) for logout exceeded", logout_timeout_s);
                     warn!("mode_change_loop: {}", detail);
-                    return Err(GfxError::DisplayManagerTimeout(detail));
+                    return Err(GfxError::SystemdUnitWaitTimeout(detail));
                 }
 
                 // Don't spin at max speed
@@ -507,8 +497,8 @@ impl CtrlGraphics {
         let mut device = device.lock().await;
         if !no_logind {
             info("all graphical user sessions ended, continuing");
-            Self::do_display_manager_action("stop")?;
-            Self::wait_display_manager_state("inactive").await?;
+            do_systemd_unit_action(SystemdUnitAction::Stop, DISPLAY_MANAGER)?;
+            wait_systemd_unit_state(SystemdUnitState::Inactive, DISPLAY_MANAGER)?;
         }
 
         // Need to change to integrated before we can change to vfio or compute
@@ -527,7 +517,7 @@ impl CtrlGraphics {
                 &mut device,
             )?;
             if !no_logind {
-                Self::do_display_manager_action("restart")?;
+                do_systemd_unit_action(SystemdUnitAction::Restart, DISPLAY_MANAGER)?;
             }
         }
 

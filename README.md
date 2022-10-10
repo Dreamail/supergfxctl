@@ -5,6 +5,12 @@
 - `integrated`, uses the iGPU only and force-disables the dGPU
 - `vfio`, binds the dGPU to vfio for VM pass-through
 
+**If rebootless switch fails:** you may need the following:
+
+```
+sudo sed -i 's/#KillUserProcesses=no/KillUserProcesses=yes/' /etc/systemd/logind.conf
+```
+
 **Nvidia only**
 
 - `dedicated`, uses the dGPU only (note, nvidia + xorg only)

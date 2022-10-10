@@ -6,8 +6,8 @@ pub enum GfxError {
     ParseVendor,
     DgpuNotFound,
     Udev(String, std::io::Error),
-    DisplayManagerAction(String),
-    DisplayManagerTimeout(String),
+    SystemdUnitAction(String),
+    SystemdUnitWaitTimeout(String),
     AsusGpuMuxModeDiscreet,
     VfioBuiltin,
     VfioDisabled,
@@ -39,11 +39,15 @@ impl fmt::Display for GfxError {
                 "Didn't find dgpu. If this is an ASUS ROG/TUF laptop this is okay"
             ),
             GfxError::Udev(msg, err) => write!(f, "udev: {msg}: {err}"),
-            GfxError::DisplayManagerAction(action) => {
-                write!(f, "Display-manager action {} failed", action)
+            GfxError::SystemdUnitAction(action) => {
+                write!(f, "systemd unit action {} failed", action)
             }
-            GfxError::DisplayManagerTimeout(state) => {
-                write!(f, "Timed out waiting for display-manager {} state", state)
+            GfxError::SystemdUnitWaitTimeout(state) => {
+                write!(
+                    f,
+                    "Timed out waiting for systemd unit change {} state",
+                    state
+                )
             }
             GfxError::AsusGpuMuxModeDiscreet => write!(
                 f,

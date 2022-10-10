@@ -1,13 +1,21 @@
 use std::{env, sync::Arc, time::Duration};
 
 use log::{error, info};
+use logind_zbus::manager::ManagerProxy;
 use std::io::Write;
 use supergfxctl::{
-    config::GfxConfig, controller::CtrlGraphics, error::GfxError, CONFIG_PATH, DBUS_DEST_NAME,
-    DBUS_IFACE_PATH, VERSION,
+    config::GfxConfig,
+    controller::CtrlGraphics,
+    error::GfxError,
+    pci_device::GfxMode,
+    special_asus::{asus_dgpu_exists, asus_dgpu_set_disabled},
+    CONFIG_PATH, DBUS_DEST_NAME, DBUS_IFACE_PATH, VERSION,
 };
 use tokio::time::sleep;
-use zbus::{export::futures_util::lock::Mutex, Connection};
+use zbus::{
+    export::futures_util::{lock::Mutex, StreamExt},
+    Connection,
+};
 use zvariant::ObjectPath;
 
 #[tokio::main]
@@ -17,7 +25,6 @@ async fn main() -> Result<(), GfxError> {
         .parse_default_env()
         .target(env_logger::Target::Stdout)
         .format(|buf, record| writeln!(buf, "{}: {}", record.level(), record.args()))
-        // .filter(None, LevelFilter::Debug)
         .init();
 
     let is_service = match env::var_os("IS_SERVICE") {
@@ -46,7 +53,12 @@ async fn start_daemon() -> Result<(), GfxError> {
     connection.request_name(DBUS_DEST_NAME).await?;
 
     let config = GfxConfig::load(CONFIG_PATH.into());
+    let use_logind = !config.no_logind;
     let config = Arc::new(Mutex::new(config));
+
+    if use_logind {
+        start_logind_tasks(config.clone()).await;
+    }
 
     // Graphics switching requires some checks on boot specifically for g-sync capable laptops
     match CtrlGraphics::new(config.clone()) {
@@ -74,9 +86,38 @@ async fn start_daemon() -> Result<(), GfxError> {
 
     // Loop to check errors and iterate zbus server
     loop {
-        // if let Err(err) = object_server.try_handle_next() {
-        //     error!("{}", err);
-        // }
         sleep(Duration::from_secs(1)).await;
     }
+}
+
+async fn start_logind_tasks(config: Arc<Mutex<GfxConfig>>) {
+    let connection = Connection::system()
+        .await
+        .expect("Controller could not create dbus connection");
+
+    let manager = ManagerProxy::new(&connection)
+        .await
+        .expect("Controller could not create ManagerProxy");
+
+    tokio::spawn(async move {
+        if let Ok(mut notif) = manager.receive_prepare_for_sleep().await {
+            while let Some(event) = notif.next().await {
+                if let Ok(args) = event.args() {
+                    if !args.start() {
+                        // on_wake();
+                        let config = config.lock().await;
+                        if config.mode == GfxMode::Integrated
+                            && config.asus_use_dgpu_disable
+                            && asus_dgpu_exists()
+                        {
+                            info!("logind task: Waking from suspend, setting dgpu_disable");
+                            asus_dgpu_set_disabled(true)
+                                .map_err(|e| error!("logind task: {e}"))
+                                .ok();
+                        }
+                    }
+                }
+            }
+        }
+    });
 }

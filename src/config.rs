@@ -171,17 +171,23 @@ fn create_vfio_conf(devices: &DiscreetGpu) -> Vec<u8> {
 }
 
 pub(crate) fn create_modprobe_conf(mode: GfxMode, devices: &DiscreetGpu) -> Result<(), GfxError> {
-    info!("Writing {}", MODPROBE_PATH);
     let content = match mode {
         GfxMode::Integrated | GfxMode::Hybrid | GfxMode::Egpu => {
             if devices.is_nvidia() {
-                let mut base = MODPROBE_NVIDIA_BASE.to_vec();
+                info!("create_modprobe_conf: writing {}", MODPROBE_PATH);
+                let mut base = if mode == GfxMode::Integrated {
+                    MODPROBE_INTEGRATED.to_vec()
+                } else {
+                    MODPROBE_NVIDIA_BASE.to_vec()
+                };
                 base.append(&mut MODPROBE_NVIDIA_DRM_MODESET.to_vec());
                 base
             } else if devices.is_amd() {
                 return Ok(());
+            } else if mode != GfxMode::Integrated {
+                warn!("create_modprobe_conf: No valid modprobe config for device");
+                return Ok(());
             } else {
-                warn!("No valid modprobe config for device");
                 return Ok(());
             }
         }

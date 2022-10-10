@@ -3,6 +3,7 @@ use std::{
     fs::OpenOptions,
     io::{Read, Write},
     path::Path,
+    time::Duration,
 };
 
 use crate::{do_driver_action, error::GfxError, pci_device::rescan_pci_bus, NVIDIA_DRIVERS};
@@ -94,14 +95,14 @@ pub fn get_asus_gpu_mux_mode() -> Result<AsusGpuMuxMode, GfxError> {
     ))
 }
 
-pub(crate) fn asus_dgpu_exists() -> bool {
+pub fn asus_dgpu_exists() -> bool {
     if Path::new(ASUS_DGPU_DISABLE_PATH).exists() {
         return true;
     }
     false
 }
 
-pub(crate) fn asus_dgpu_disabled() -> Result<bool, GfxError> {
+pub fn asus_dgpu_disabled() -> Result<bool, GfxError> {
     let path = Path::new(ASUS_DGPU_DISABLE_PATH);
     let mut file = OpenOptions::new()
         .read(true)
@@ -116,13 +117,15 @@ pub(crate) fn asus_dgpu_disabled() -> Result<bool, GfxError> {
 }
 
 /// Special ASUS only feature. On toggle to `off` it will rescan the PCI bus.
-pub(crate) fn asus_dgpu_set_disabled(disabled: bool) -> Result<(), GfxError> {
+pub fn asus_dgpu_set_disabled(disabled: bool) -> Result<(), GfxError> {
     // Need to set, scan, set to ensure mode is correctly set
     asus_gpu_toggle(disabled, ASUS_DGPU_DISABLE_PATH)?;
-    if !disabled {
-        rescan_pci_bus()?;
-        asus_gpu_toggle(disabled, ASUS_DGPU_DISABLE_PATH)?;
-    }
+    // if !disabled {
+    // Purposefully blocking here. Need to force enough time for things to wake
+    std::thread::sleep(Duration::from_millis(300));
+    rescan_pci_bus()?;
+    // asus_gpu_toggle(disabled, ASUS_DGPU_DISABLE_PATH)?;
+    // }
     Ok(())
 }
 
