@@ -9,7 +9,7 @@ use crate::error::GfxError;
 use crate::pci_device::{DiscreetGpu, GfxMode, GfxRequiredUserAction};
 use crate::special_asus::asus_dgpu_exists;
 use crate::{
-    MODPROBE_INTEGRATED, MODPROBE_NVIDIA_BASE, MODPROBE_NVIDIA_DRM_MODESET, MODPROBE_PATH,
+    MODPROBE_INTEGRATED, MODPROBE_NVIDIA_BASE, MODPROBE_NVIDIA_DRM_MODESET_ON, MODPROBE_PATH,
     MODPROBE_VFIO,
 };
 
@@ -171,29 +171,27 @@ fn create_vfio_conf(devices: &DiscreetGpu) -> Vec<u8> {
 }
 
 pub(crate) fn create_modprobe_conf(mode: GfxMode, devices: &DiscreetGpu) -> Result<(), GfxError> {
+    if devices.is_amd() {
+        return Ok(());
+    }
+
     let content = match mode {
-        GfxMode::Integrated | GfxMode::Hybrid | GfxMode::Egpu => {
+        GfxMode::Hybrid | GfxMode::Egpu => {
             if devices.is_nvidia() {
-                info!("create_modprobe_conf: writing {}", MODPROBE_PATH);
-                let mut base = if mode == GfxMode::Integrated {
-                    MODPROBE_INTEGRATED.to_vec()
-                } else {
-                    MODPROBE_NVIDIA_BASE.to_vec()
-                };
-                base.append(&mut MODPROBE_NVIDIA_DRM_MODESET.to_vec());
+                let mut base = MODPROBE_NVIDIA_BASE.to_vec();
+                base.append(&mut MODPROBE_NVIDIA_DRM_MODESET_ON.to_vec());
                 base
-            } else if devices.is_amd() {
-                return Ok(());
-            } else if mode != GfxMode::Integrated {
-                warn!("create_modprobe_conf: No valid modprobe config for device");
-                return Ok(());
             } else {
                 return Ok(());
             }
         }
         GfxMode::Vfio => create_vfio_conf(devices),
-        GfxMode::Compute => MODPROBE_NVIDIA_BASE.to_vec(),
-        GfxMode::None | GfxMode::AsusMuxDiscreet => vec![],
+        GfxMode::Integrated => {
+            let mut base = MODPROBE_INTEGRATED.to_vec();
+            base.append(&mut MODPROBE_NVIDIA_DRM_MODESET_ON.to_vec());
+            base
+        }
+        GfxMode::None | GfxMode::AsusMuxDiscreet | GfxMode::Compute => vec![],
     };
 
     let mut file = std::fs::OpenOptions::new()
@@ -203,6 +201,7 @@ pub(crate) fn create_modprobe_conf(mode: GfxMode, devices: &DiscreetGpu) -> Resu
         .open(MODPROBE_PATH)
         .map_err(|err| GfxError::Path(MODPROBE_PATH.into(), err))?;
 
+    info!("create_modprobe_conf: writing {}", MODPROBE_PATH);
     file.write_all(&content)
         .and_then(|_| file.sync_all())
         .map_err(|err| GfxError::Write(MODPROBE_PATH.into(), err))?;

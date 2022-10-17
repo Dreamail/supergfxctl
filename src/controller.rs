@@ -99,6 +99,12 @@ impl CtrlGraphics {
         if asus_use_dgpu_disable && asus_dgpu_exists() {
             warn!("Has ASUS dGPU and dgpu_disable, toggling hotplug power off/on to prep");
             let dgpu = self.dgpu.lock().await;
+            if dgpu.vendor() == GfxVendor::Nvidia {
+                kill_nvidia_lsof()?;
+                dgpu.do_driver_action("rmmod")?;
+            } else if dgpu.vendor() == GfxVendor::Amd {
+                dgpu.unbind_remove()?;
+            }
             dgpu.set_hotplug(HotplugState::Off)?;
             dgpu.set_hotplug(HotplugState::On)?;
         }
@@ -132,7 +138,13 @@ impl CtrlGraphics {
         }
 
         let mut dgpu = self.dgpu.lock().await;
-        Self::do_mode_setup_tasks(mode, vfio_enable, asus_use_dgpu_disable, &mut dgpu)?;
+        Self::do_mode_setup_tasks(
+            mode,
+            GfxMode::None,
+            vfio_enable,
+            asus_use_dgpu_disable,
+            &mut dgpu,
+        )?;
         // Self::mode_change_loop(
         //     mode,
         //     self.dgpu.clone(),
@@ -330,107 +342,6 @@ impl CtrlGraphics {
         Ok(())
     }
 
-    /// Do a full setup flow for the chosen mode:
-    ///
-    /// Tasks:
-    /// - rescan for devices
-    /// - write modprobe config
-    ///   + add drivers
-    ///   + or remove drivers and devices
-    pub fn do_mode_setup_tasks(
-        mode: GfxMode,
-        vfio_enable: bool,
-        asus_use_dgpu_disable: bool,
-        devices: &mut DiscreetGpu,
-    ) -> Result<(), GfxError> {
-        debug!("do_mode_setup_tasks(mode:{mode:?}, vfio_enable:{vfio_enable}, asus_use_dgpu_disable: {asus_use_dgpu_disable})");
-        let debug = |s: &str| debug!("do_mode_setup_tasks: {s}");
-        let warn = |s: &str| warn!("do_mode_setup_tasks: {s}");
-
-        create_modprobe_conf(mode, devices)?;
-        Self::do_rescan(mode, asus_use_dgpu_disable, devices)?;
-
-        match mode {
-            GfxMode::Hybrid | GfxMode::Compute => {
-                debug("Mode match: GfxMode::Hybrid | GfxMode::Compute");
-                if vfio_enable {
-                    for driver in VFIO_DRIVERS.iter() {
-                        do_driver_action(driver, "rmmod")?;
-                    }
-                }
-                devices.set_hotplug(HotplugState::On)?;
-                if asus_egpu_exists() {
-                    asus_egpu_set_enabled(false)?;
-                }
-                if asus_dgpu_exists() && asus_use_dgpu_disable {
-                    asus_dgpu_set_disabled(false)?;
-                }
-                devices.do_driver_action("modprobe")?;
-                // TODO: Need to enable or disable on AC status
-                toggle_nvidia_powerd(true, devices.vendor())?;
-            }
-            GfxMode::Vfio => {
-                debug!("Mode match: GfxMode::Vfio");
-                if vfio_enable {
-                    toggle_nvidia_powerd(false, devices.vendor())?;
-                    kill_nvidia_lsof()?;
-                    devices.unbind()?;
-                    devices.do_driver_action("rmmod")?;
-                    do_driver_action("nouveau", "rmmod")?;
-                    do_driver_action("vfio-pci", "modprobe")?;
-                } else {
-                    return Err(GfxError::VfioDisabled);
-                }
-            }
-            GfxMode::Integrated => {
-                debug!("Mode match: GfxMode::Integrated");
-                do_driver_action("nouveau", "rmmod")?;
-                if vfio_enable {
-                    for driver in VFIO_DRIVERS.iter() {
-                        do_driver_action(driver, "rmmod")?;
-                    }
-                }
-                toggle_nvidia_powerd(false, devices.vendor())?;
-                kill_nvidia_lsof()?;
-                devices.unbind().ok();
-                devices.remove().ok();
-                devices.do_driver_action("rmmod")?;
-                devices.set_hotplug(HotplugState::Off)?;
-                // This can only be done *after* the drivers are removed or a
-                // hardlock will be caused
-                if asus_dgpu_exists() && asus_use_dgpu_disable {
-                    asus_dgpu_set_disabled(true)?;
-                }
-                if asus_egpu_exists() {
-                    asus_egpu_set_enabled(false)?;
-                }
-            }
-            GfxMode::Egpu => {
-                debug!("Mode match: GfxMode::Egpu");
-                if !asus_egpu_exists() {
-                    warn("eGPU mode attempted while unsupported by this machine");
-                    return Err(GfxError::NotSupported(
-                        "eGPU mode not supported".to_string(),
-                    ));
-                }
-
-                if vfio_enable {
-                    for driver in VFIO_DRIVERS.iter() {
-                        do_driver_action(driver, "rmmod")?;
-                    }
-                }
-
-                devices.set_hotplug(HotplugState::Off)?;
-                asus_egpu_set_enabled(true)?;
-                devices.do_driver_action("modprobe")?;
-                toggle_nvidia_powerd(true, devices.vendor())?;
-            }
-            GfxMode::None | GfxMode::AsusMuxDiscreet => {}
-        }
-        devices.set_runtime_pm(RuntimePowerManagement::Auto)?;
-        Ok(())
-    }
-
     /// Spools until all user sessions are ended then switches to requested mode
     async fn mode_change_loop(
         mode: GfxMode,
@@ -505,6 +416,7 @@ impl CtrlGraphics {
         // Since we have a lock, reset tmp to none. This thread should only ever run
         // for Integrated, Hybrid, or Nvidia. Tmp is also only for informational
         let mut config = config.lock().await;
+        let last_mode = config.tmp_mode.unwrap_or(GfxMode::None);
         config.tmp_mode = None;
 
         if matches!(mode, GfxMode::Compute | GfxMode::Vfio) {
@@ -512,6 +424,7 @@ impl CtrlGraphics {
         } else {
             Self::do_mode_setup_tasks(
                 mode,
+                last_mode,
                 config.vfio_enable,
                 asus_use_dgpu_disable,
                 &mut device,
@@ -563,6 +476,108 @@ impl CtrlGraphics {
         let mut config = self.config.lock().await;
         config.pending_mode = None;
         config.pending_action = None;
+    }
+
+    /// Do a full setup flow for the chosen mode:
+    ///
+    /// Tasks:
+    /// - rescan for devices
+    /// - write modprobe config
+    ///   + add drivers
+    ///   + or remove drivers and devices
+    pub fn do_mode_setup_tasks(
+        mode: GfxMode,
+        last_mode: GfxMode,
+        vfio_enable: bool,
+        asus_use_dgpu_disable: bool,
+        devices: &mut DiscreetGpu,
+    ) -> Result<(), GfxError> {
+        debug!("do_mode_setup_tasks(mode:{mode:?}, vfio_enable:{vfio_enable}, asus_use_dgpu_disable: {asus_use_dgpu_disable})");
+        let debug = |s: &str| debug!("do_mode_setup_tasks: {s}");
+        let warn = |s: &str| warn!("do_mode_setup_tasks: {s}");
+
+        create_modprobe_conf(mode, devices)?;
+        Self::do_rescan(mode, asus_use_dgpu_disable, devices)?;
+
+        match mode {
+            GfxMode::Hybrid | GfxMode::Compute => {
+                debug("Mode match: GfxMode::Hybrid | GfxMode::Compute");
+                if vfio_enable {
+                    for driver in VFIO_DRIVERS.iter() {
+                        do_driver_action(driver, "rmmod")?;
+                    }
+                }
+                devices.set_hotplug(HotplugState::On)?;
+                if asus_dgpu_exists() && asus_use_dgpu_disable {
+                    asus_dgpu_set_disabled(false)?;
+                }
+                if asus_egpu_exists() {
+                    asus_egpu_set_enabled(false)?;
+                }
+                // TODO: Need to enable or disable on AC status
+                toggle_nvidia_powerd(true, devices.vendor())?;
+            }
+            GfxMode::Vfio => {
+                debug!("Mode match: GfxMode::Vfio");
+                if vfio_enable {
+                    toggle_nvidia_powerd(false, devices.vendor())?;
+                    kill_nvidia_lsof()?;
+                    devices.unbind()?;
+                    do_driver_action("vfio-pci", "modprobe")?;
+                } else {
+                    return Err(GfxError::VfioDisabled);
+                }
+            }
+            GfxMode::Integrated => {
+                debug!("Mode match: GfxMode::Integrated");
+                if vfio_enable {
+                    for driver in VFIO_DRIVERS.iter() {
+                        do_driver_action(driver, "rmmod")?;
+                    }
+                }
+                toggle_nvidia_powerd(false, devices.vendor())?;
+                if devices.vendor() == GfxVendor::Nvidia {
+                    kill_nvidia_lsof()?;
+                    if last_mode != GfxMode::Compute {
+                        devices.do_driver_action("rmmod")?;
+                    } else {
+                        warn!("Switching to integrated from compute mode. This isn't fully supported and must unbind drivers instead of unloading.");
+                    }
+                }
+                devices.unbind_remove()?;
+                devices.set_hotplug(HotplugState::Off)?;
+                // This can only be done *after* the drivers are removed or a
+                // hardlock will be caused
+                if asus_dgpu_exists() && asus_use_dgpu_disable {
+                    asus_dgpu_set_disabled(true)?;
+                }
+                if asus_egpu_exists() {
+                    asus_egpu_set_enabled(false)?;
+                }
+            }
+            GfxMode::Egpu => {
+                debug!("Mode match: GfxMode::Egpu");
+                if !asus_egpu_exists() {
+                    warn("eGPU mode attempted while unsupported by this machine");
+                    return Err(GfxError::NotSupported(
+                        "eGPU mode not supported".to_string(),
+                    ));
+                }
+
+                if vfio_enable {
+                    for driver in VFIO_DRIVERS.iter() {
+                        do_driver_action(driver, "rmmod")?;
+                    }
+                }
+
+                devices.set_hotplug(HotplugState::Off)?;
+                asus_egpu_set_enabled(true)?;
+                toggle_nvidia_powerd(true, devices.vendor())?;
+            }
+            GfxMode::None | GfxMode::AsusMuxDiscreet => {}
+        }
+        devices.set_runtime_pm(RuntimePowerManagement::Auto)?;
+        Ok(())
     }
 
     /// Initiates a mode change by starting a thread that will wait until all
@@ -617,7 +632,17 @@ impl CtrlGraphics {
             GfxRequiredUserAction::None => {
                 info!("set_gfx_mode: mode change does not require logout");
                 let mut dgpu = self.dgpu.lock().await;
-                Self::do_mode_setup_tasks(mode, vfio_enable, asus_use_dgpu_disable, &mut dgpu)?;
+                let last_mode = {
+                    let config = self.config.lock().await;
+                    config.tmp_mode.unwrap_or(GfxMode::None)
+                };
+                Self::do_mode_setup_tasks(
+                    mode,
+                    last_mode,
+                    vfio_enable,
+                    asus_use_dgpu_disable,
+                    &mut dgpu,
+                )?;
                 info!(
                     "set_gfx_mode: Graphics mode changed to {}",
                     <&str>::from(mode)

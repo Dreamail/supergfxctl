@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-use crate::{do_driver_action, error::GfxError, pci_device::rescan_pci_bus, NVIDIA_DRIVERS};
+use crate::{error::GfxError, pci_device::rescan_pci_bus};
 
 const ASUS_DGPU_DISABLE_PATH: &str = "/sys/devices/platform/asus-nb-wmi/dgpu_disable";
 const ASUS_EGPU_ENABLE_PATH: &str = "/sys/devices/platform/asus-nb-wmi/egpu_enable";
@@ -118,14 +118,16 @@ pub fn asus_dgpu_disabled() -> Result<bool, GfxError> {
 
 /// Special ASUS only feature. On toggle to `off` it will rescan the PCI bus.
 pub fn asus_dgpu_set_disabled(disabled: bool) -> Result<(), GfxError> {
+    // There is a sleep here because this function is generally called after a hotplug
+    // enable, and the deivces require at least a touch of time to finish powering up/down
+    std::thread::sleep(Duration::from_millis(500));
     // Need to set, scan, set to ensure mode is correctly set
     asus_gpu_toggle(disabled, ASUS_DGPU_DISABLE_PATH)?;
-    // if !disabled {
-    // Purposefully blocking here. Need to force enough time for things to wake
-    std::thread::sleep(Duration::from_millis(300));
-    rescan_pci_bus()?;
-    // asus_gpu_toggle(disabled, ASUS_DGPU_DISABLE_PATH)?;
-    // }
+    if !disabled {
+        // Purposefully blocking here. Need to force enough time for things to wake
+        std::thread::sleep(Duration::from_millis(50));
+        rescan_pci_bus()?;
+    }
     Ok(())
 }
 
@@ -138,16 +140,15 @@ pub(crate) fn asus_egpu_exists() -> bool {
 
 /// Special ASUS only feature. On toggle to `on` it will rescan the PCI bus.
 pub(crate) fn asus_egpu_set_enabled(enabled: bool) -> Result<(), GfxError> {
-    // toggling from egpu must have the nvidia driver unloaded
-    for driver in NVIDIA_DRIVERS.iter() {
-        debug!("egpu_enable unset, ensuring nvidia drivers removed");
-        do_driver_action(driver, "rmmod")?;
-    }
+    // There is a sleep here because this function is generally called after a hotplug
+    // enable, and the deivces require at least a touch of time to finish powering up
+    std::thread::sleep(Duration::from_millis(500));
     // Need to set, scan, set to ensure mode is correctly set
     asus_gpu_toggle(enabled, ASUS_EGPU_ENABLE_PATH)?;
     if enabled {
+        // Purposefully blocking here. Need to force enough time for things to wake
+        std::thread::sleep(Duration::from_millis(50));
         rescan_pci_bus()?;
-        asus_gpu_toggle(enabled, ASUS_EGPU_ENABLE_PATH)?;
     }
     Ok(())
 }
