@@ -9,12 +9,22 @@ use crate::error::GfxError;
 use crate::special_asus::{
     asus_dgpu_disabled, asus_dgpu_exists, get_asus_gpu_mux_mode, has_asus_gpu_mux, AsusGpuMuxMode,
 };
-use crate::{do_driver_action, find_slot_power, NVIDIA_DRIVERS};
+use crate::{do_driver_action, find_slot_power, DriverAction, NVIDIA_DRIVERS};
 
 use serde_derive::{Deserialize, Serialize};
 use zvariant_derive::Type;
 
 const PCI_BUS_PATH: &str = "/sys/bus/pci";
+
+#[derive(Debug, Type, PartialEq, Eq, Copy, Clone, Deserialize, Serialize)]
+pub enum HotplugType {
+    /// Use only kernel level hotplug feature
+    Std,
+    /// Use ASUS dgpu_disable
+    Asus,
+    /// Do not use hotplugging
+    None,
+}
 
 #[derive(Debug, Type, PartialEq, Eq, Copy, Clone)]
 pub enum HotplugState {
@@ -33,8 +43,8 @@ impl FromStr for HotplugState {
     }
 }
 
-impl From<&HotplugState> for &str {
-    fn from(gfx: &HotplugState) -> &'static str {
+impl From<HotplugState> for &str {
+    fn from(gfx: HotplugState) -> &'static str {
         match gfx {
             HotplugState::On => "1",
             HotplugState::Off => "0",
@@ -262,7 +272,7 @@ impl Device {
                 .open(path)
                 .map_err(|err| GfxError::Path(path.to_string_lossy().to_string(), err))?;
 
-            file.write_all(<&str>::from(&state).as_bytes())
+            file.write_all(<&str>::from(state).as_bytes())
                 .map_err(|err| GfxError::Write(path.to_string_lossy().to_string(), err))?;
         }
         Ok(())
@@ -642,8 +652,12 @@ impl DiscreetGpu {
         self.remove()
     }
 
-    pub fn do_driver_action(&self, action: &str) -> Result<(), GfxError> {
-        debug!("do_driver_action: action = {}, {:?}", action, self.devices);
+    pub fn do_driver_action(&self, action: DriverAction) -> Result<(), GfxError> {
+        debug!(
+            "do_driver_action: action = {}, {:?}",
+            <&str>::from(action),
+            self.devices
+        );
         if self.is_nvidia() {
             for driver in NVIDIA_DRIVERS.iter() {
                 do_driver_action(driver, action)?;

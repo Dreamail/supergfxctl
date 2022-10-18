@@ -6,8 +6,7 @@ use zvariant_derive::Type;
 
 use crate::config_old::{GfxConfig300, GfxConfig405};
 use crate::error::GfxError;
-use crate::pci_device::{DiscreetGpu, GfxMode, GfxRequiredUserAction};
-use crate::special_asus::asus_dgpu_exists;
+use crate::pci_device::{DiscreetGpu, GfxMode, GfxRequiredUserAction, HotplugType};
 use crate::{
     MODPROBE_INTEGRATED, MODPROBE_NVIDIA_BASE, MODPROBE_NVIDIA_DRM_MODESET_ON, MODPROBE_PATH,
     MODPROBE_VFIO,
@@ -23,7 +22,7 @@ pub struct GfxConfigDbus {
     pub always_reboot: bool,
     pub no_logind: bool,
     pub logout_timeout_s: u64,
-    pub asus_use_dgpu_enable: bool,
+    pub hotplug_type: HotplugType,
 }
 
 impl From<&GfxConfig> for GfxConfigDbus {
@@ -36,7 +35,7 @@ impl From<&GfxConfig> for GfxConfigDbus {
             always_reboot: c.always_reboot,
             no_logind: c.no_logind,
             logout_timeout_s: c.logout_timeout_s,
-            asus_use_dgpu_enable: c.asus_use_dgpu_disable,
+            hotplug_type: c.hotplug_type,
         }
     }
 }
@@ -68,8 +67,8 @@ pub struct GfxConfig {
     pub no_logind: bool,
     /// The timeout in seconds to wait for all user graphical sessions to end. Default is 3 minutes, 0 = infinite. Ignored if `no_logind` or `always_reboot` is set.
     pub logout_timeout_s: u64,
-    /// Specific to ASUS ROG/TUF laptops
-    pub asus_use_dgpu_disable: bool,
+    /// The type of method to use for hotplug. ASUS is... fiddly.
+    pub hotplug_type: HotplugType,
 }
 
 impl GfxConfig {
@@ -86,7 +85,7 @@ impl GfxConfig {
             always_reboot: false,
             no_logind: false,
             logout_timeout_s: 180,
-            asus_use_dgpu_disable: asus_dgpu_exists(),
+            hotplug_type: HotplugType::None,
         }
     }
 

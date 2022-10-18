@@ -86,6 +86,21 @@ alias nouveau off
 
 static MODPROBE_VFIO: &[u8] = br#"options vfio-pci ids="#;
 
+#[derive(Debug, Clone, Copy)]
+pub enum DriverAction {
+    Remove,
+    Load,
+}
+
+impl From<DriverAction> for &str {
+    fn from(a: DriverAction) -> Self {
+        match a {
+            DriverAction::Remove => "rmmod",
+            DriverAction::Load => "modprobe",
+        }
+    }
+}
+
 /// Basic check for support. If `()` returned everything is kosher.
 fn mode_support_check(mode: &GfxMode, dgpu: &DiscreetGpu) -> Result<(), GfxError> {
     if matches!(mode, GfxMode::Egpu) && !asus_egpu_exists() {
@@ -102,15 +117,19 @@ fn mode_support_check(mode: &GfxMode, dgpu: &DiscreetGpu) -> Result<(), GfxError
 }
 
 /// Add or remove driver modules
-fn do_driver_action(driver: &str, action: &str) -> Result<(), GfxError> {
-    let mut cmd = Command::new(action);
+fn do_driver_action(driver: &str, action: DriverAction) -> Result<(), GfxError> {
+    let mut cmd = Command::new(<&str>::from(action));
     cmd.arg(driver);
 
     let mut count = 0;
     const MAX_TRIES: i32 = 6;
     loop {
         if count > MAX_TRIES {
-            let msg = format!("{} {} failed for unknown reason", action, driver);
+            let msg = format!(
+                "{} {} failed for unknown reason",
+                <&str>::from(action),
+                driver
+            );
             error!("{}", msg);
             break; //Err(GfxError::Modprobe(msg));
         }
@@ -123,7 +142,10 @@ fn do_driver_action(driver: &str, action: &str) -> Result<(), GfxError> {
                 .stderr
                 .ends_with("is not currently loaded\n".as_bytes())
             {
-                debug!("Driver {driver} was not loaded, skipping {action}");
+                debug!(
+                    "Driver {driver} was not loaded, skipping {}",
+                    <&str>::from(action)
+                );
                 break;
             }
             if output.stderr.ends_with("is builtin.\n".as_bytes()) {
@@ -132,7 +154,7 @@ fn do_driver_action(driver: &str, action: &str) -> Result<(), GfxError> {
             if output.stderr.ends_with("Permission denied\n".as_bytes()) {
                 warn!(
                     "{} {} failed: {:?}",
-                    action,
+                    <&str>::from(action),
                     driver,
                     String::from_utf8_lossy(&output.stderr)
                 );
@@ -147,14 +169,14 @@ fn do_driver_action(driver: &str, action: &str) -> Result<(), GfxError> {
             if count >= MAX_TRIES {
                 let msg = format!(
                     "{} {} failed: {:?}",
-                    action,
+                    <&str>::from(action),
                     driver,
                     String::from_utf8_lossy(&output.stderr)
                 );
                 return Err(GfxError::Modprobe(msg));
             }
         } else if output.status.success() {
-            debug!("Did {action} for driver {driver}");
+            debug!("Did {} for driver {driver}", <&str>::from(action));
             break;
         }
 

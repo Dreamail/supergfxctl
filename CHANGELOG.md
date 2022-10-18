@@ -6,26 +6,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [5.0.0-rc12] - 2022-10-18
+## [5.0.0-rc15] - 2022-10-21
 ### Added
 - 99-nvidia-ac.rules udev rule added to ./data, this rule is useful for stopping `nvidia-powerd` on battery as some nvidia based laptops are poorly behaved when it is active (OPTIONAL)
+- New config option: `hotplug_type`. This accepts: None (default), Std, or Asus. Std tries to use the kernel hotplug mechanism if available, while Asus tries to use dgpu_disable if available
+- With the above, your success with with Std or Asus may vary, and may be unreliable. In general try Std first and check the battery drain after toggling.
 ### Changed
-- Using udev internally to find devices rather than manually scanning directories
-- Better support for ASUS dgpu_disable and egpu_enable
-- Check if asus gpu_mux_mode exists, and value of it
-- Removed dedicated mode as it causes more trouble than it is worth
-- Config option `asus_use_dgpu_disable` defaults to on if ASUS dgpu_disable exists
-- Update dependencies
 - nvidia.modeset=0 not required for rebootless switching now
+- Removed dedicated mode as it causes more trouble than it is worth (ASUS: use gpu_mux_mode patch or kernel 6.1)
+- Better support for ASUS dgpu_disable and egpu_enable
+- Ensure sufficient time passes before rescan on dgpu_disable change
+- Check if asus gpu_mux_mode exists, and value of it
+- Fix: add logind sleep/resume task to ensure dgpu_disable is set (only if hotplug_type == Asus)
+- Using udev internally to find devices rather than manually scanning directories
 - Cleaner systemd systemctl interaction
 - Try to ignore session zbus error on path object not existing
-- Fix: add logind sleep/resume task to ensure dgpu_disable is set
-- Ensure sufficient time passes before rescan on dgpu_disable change
 - Rework dgpu detection
-- Enable use of hotplug if available, and combine with dgpu_disable
 - Refactor ordering of device ops
-- Split unbind and remove
-    
+- Retry mode change thread on first fail
+- Remove the hotplug prep thing
+- Change some &str args to enum + From<T> impl
+
 ## [4.0.5] - 2022-06-22
 ### Changed
 - Fix interaction with lspci >= 3.8.0 (Author: Anton Shangareev)

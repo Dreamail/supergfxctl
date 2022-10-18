@@ -7,7 +7,7 @@ use supergfxctl::{
     config::GfxConfig,
     controller::CtrlGraphics,
     error::GfxError,
-    pci_device::GfxMode,
+    pci_device::{GfxMode, HotplugType},
     special_asus::{asus_dgpu_exists, asus_dgpu_set_disabled},
     CONFIG_PATH, DBUS_DEST_NAME, DBUS_IFACE_PATH, VERSION,
 };
@@ -107,7 +107,7 @@ async fn start_logind_tasks(config: Arc<Mutex<GfxConfig>>) {
                         // on_wake();
                         let config = config.lock().await;
                         if config.mode == GfxMode::Integrated
-                            && config.asus_use_dgpu_disable
+                            && config.hotplug_type == HotplugType::Asus
                             && asus_dgpu_exists()
                         {
                             info!("logind task: Waking from suspend, setting dgpu_disable");

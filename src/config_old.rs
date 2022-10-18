@@ -1,6 +1,9 @@
 use serde_derive::{Deserialize, Serialize};
 
-use crate::{config::GfxConfig, pci_device::GfxMode, special_asus::asus_dgpu_exists};
+use crate::{
+    config::GfxConfig,
+    pci_device::{GfxMode, HotplugType},
+};
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Deserialize, Serialize)]
 pub enum GfxMode300 {
@@ -46,7 +49,7 @@ impl From<GfxConfig300> for GfxConfig {
             always_reboot: false,
             no_logind: false,
             logout_timeout_s: 180,
-            asus_use_dgpu_disable: asus_dgpu_exists(),
+            hotplug_type: HotplugType::None,
         }
     }
 }
@@ -74,7 +77,7 @@ impl From<GfxConfig402> for GfxConfig {
             always_reboot: old.always_reboot,
             no_logind: false,
             logout_timeout_s: 180,
-            asus_use_dgpu_disable: asus_dgpu_exists(),
+            hotplug_type: HotplugType::None,
         }
     }
 }
@@ -104,7 +107,7 @@ impl From<GfxConfig405> for GfxConfig {
             always_reboot: old.always_reboot,
             no_logind: false,
             logout_timeout_s: 180,
-            asus_use_dgpu_disable: asus_dgpu_exists(),
+            hotplug_type: HotplugType::None,
         }
     }
 }
