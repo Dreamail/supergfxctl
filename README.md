@@ -13,7 +13,6 @@ sudo sed -i 's/#KillUserProcesses=no/KillUserProcesses=yes/' /etc/systemd/logind
 
 **Nvidia only**
 
-- `dedicated`, uses the dGPU only (note, nvidia + xorg only)
 - `compute`, enables Nvidia without Xorg. Useful for ML/Cuda (note, nvidia only)
 
 **ASUS ROG Flow 13" only**
@@ -66,28 +65,16 @@ refresh your session (easiest way is to reboot).
 
 **Switch GPU modes**
 
-* Switching to/from Hybrid and Dedicated modes requires a logout only. (no reboot)
+* Switching to/from Hybrid mode requires a logout only. (no reboot)
 * Switching between integrated/compute/vfio is instant. (no logout or reboot)
 * Mode can be set via kernel cmdline with `supergfxd.mode=`. Capitalisation does not matter.
 
 | GPU Modes  | Command                       |
 |------------|-------------------------------|
 | Integrated | supergfxctl --mode integrated |
-| Dedicated  | supergfxctl --mode dedicated  |
 | Hybrid     | supergfxctl --mode hybrid     |
 | Compute    | supergfxctl --mode compute    |
 | VFIO       | supergfxctl --mode vfio       |
-
-#### Required actions in distro
-
-**NVIDIA Rebootless note:** You must edit `/etc/default/grub` to edit `nvidia-drm.modeset=1`
-to `nvidia-drm.modeset=0` on the line `GRUB_CMDLINE_LINUX=` and then recreate your grub config.
-
-In fedora you can do this with `sudo grub2-mkconfig -o /etc/grub2.cfg` - other distro may be
-similar but with a different config location. It's possible that graphics driver updates
-may change this.
-
-If `nvidia-drm.modeset=1` is used then supergfxd requires a reboot to change modes.
 
 #### supergfxctl
 
@@ -114,10 +101,11 @@ Optional arguments:
 5. `always_reboot` <bool> : always require a reboot to change modes (helps some laptops)
 6. `no_logind` <bool> : don't use logind to see if all sessions are logged out and therefore safe to change mode. This will be useful for people not using a login manager. Ignored if `always_reboot` is set.
 7. `logout_timeout_s` <u64> : the timeout in seconds to wait for all user graphical sessions to end. Default is 3 minutes, 0 = infinite. Ignored if `no_logind` or `always_reboot` is set.
+8. `hotplug_type` <enum> : None (default), Std, or Asus. Std tries to use the kernel hotplug mechanism if available, while Asus tries to use dgpu_disable if available
 
 #### Graphics switching notes
 
-**G-Sync note:** Some laptops are capable of using the dGPU as the sole GPU in the system which is generally to enable g-sync on the laptop display panel. This is controlled by asusctl at this time, and may be added to supergfxd later.
+**ASUS G-Sync + ASUS GPU-MUX note:** Some ASUS laptops are capable of using the dGPU as the sole GPU in the system which is generally to enable g-sync on the laptop display panel. This is controlled by asusctl at this time, and may be added to supergfxd later. If mux/g-sync is enabled then supergfxd will halt itself until it is disabled again.
 
 **vfio note:** The vfio modules *must not* be compiled into the kernel, they need
 to be separate modules. If you don't plan to use vfio mode then you can ignore this
