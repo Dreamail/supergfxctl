@@ -1,5 +1,14 @@
 # supergfxctl
 
+**You need this only if you:**
+1. have a laptop that can't suspend its dGPU
+2. need an easy way to use vfio
+3. want to monitor the dGPU status
+4. want to try using hotplug and/or ASUS ROG dgpu_disable (results will vary)
+5. have an ASUS with an eGPU and need to switch to it (testing required please)
+
+**Xorg is no-longer supported (but supergfxd still works with it)**
+
 `supergfxd` can switch graphics modes between:
 - `hybrid`, enables dGPU-offload mode
 - `integrated`, uses the iGPU only and force-disables the dGPU
@@ -13,7 +22,7 @@ sudo sed -i 's/#KillUserProcesses=no/KillUserProcesses=yes/' /etc/systemd/logind
 
 **Nvidia only**
 
-- `compute`, enables Nvidia without Xorg. Useful for ML/Cuda (note, nvidia only)
+- `compute`, enables Nvidia without DRM. Useful for ML/Cuda (note, nvidia only)
 
 **ASUS ROG Flow 13" only**
 
@@ -92,7 +101,7 @@ Optional arguments:
   -P, --pend-mode    Get the pending mode change if any
 ```
 
-#### Config options
+#### Config options /etc/supergfxd.conf
 
 1. `mode`: <MODE> : any of supported modes, must be capitalised
 2. `vfio_enable` <bool> : enable vfio switching for dGPU passthrough
@@ -102,6 +111,10 @@ Optional arguments:
 6. `no_logind` <bool> : don't use logind to see if all sessions are logged out and therefore safe to change mode. This will be useful for people not using a login manager. Ignored if `always_reboot` is set.
 7. `logout_timeout_s` <u64> : the timeout in seconds to wait for all user graphical sessions to end. Default is 3 minutes, 0 = infinite. Ignored if `no_logind` or `always_reboot` is set.
 8. `hotplug_type` <enum> : None (default), Std, or Asus. Std tries to use the kernel hotplug mechanism if available, while Asus tries to use dgpu_disable if available
+
+**You must restart the service if you edit the config file**
+
+**Changing hotplug_type requires a reboot to ensure correct state**, for example if you were in integrated mode with `hotplug_type = Asus` and changed to `hotplug_type = None` you would not have dGPU available until reboot.
 
 #### Graphics switching notes
 

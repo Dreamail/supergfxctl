@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [5.0.0-rc15] - 2022-10-21
+## [5.0.0] - 2022-10-21
 ### Added
 - 99-nvidia-ac.rules udev rule added to ./data, this rule is useful for stopping `nvidia-powerd` on battery as some nvidia based laptops are poorly behaved when it is active (OPTIONAL)
 - New config option: `hotplug_type`. This accepts: None (default), Std, or Asus. Std tries to use the kernel hotplug mechanism if available, while Asus tries to use dgpu_disable if available
@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Retry mode change thread on first fail
 - Remove the hotplug prep thing
 - Change some &str args to enum + From<T> impl
+- **Please review README.md for further info**
 
 ## [4.0.5] - 2022-06-22
 ### Changed
