@@ -144,7 +144,6 @@ impl From<&GfxVendor> for &str {
 pub enum GfxMode {
     Hybrid,
     Integrated,
-    Compute,
     Vfio,
     Egpu,
     AsusMuxDiscreet,
@@ -158,7 +157,6 @@ impl FromStr for GfxMode {
         match s.to_lowercase().trim() {
             "hybrid" => Ok(GfxMode::Hybrid),
             "integrated" => Ok(GfxMode::Integrated),
-            "compute" => Ok(GfxMode::Compute),
             "vfio" => Ok(GfxMode::Vfio),
             "egpu" => Ok(GfxMode::Egpu),
             _ => Err(GfxError::ParseVendor),
@@ -171,7 +169,6 @@ impl From<GfxMode> for &str {
         match gfx {
             GfxMode::Hybrid => "hybrid",
             GfxMode::Integrated => "integrated",
-            GfxMode::Compute => "compute",
             GfxMode::Vfio => "vfio",
             GfxMode::Egpu => "egpu",
             GfxMode::AsusMuxDiscreet => "asus_mux_discreet",

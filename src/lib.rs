@@ -7,7 +7,7 @@ use std::{
 };
 
 use log::{debug, error, info, warn};
-use pci_device::{DiscreetGpu, GfxVendor};
+use pci_device::GfxVendor;
 
 use crate::{error::GfxError, pci_device::GfxMode, special_asus::*};
 
@@ -102,17 +102,11 @@ impl From<DriverAction> for &str {
 }
 
 /// Basic check for support. If `()` returned everything is kosher.
-fn mode_support_check(mode: &GfxMode, dgpu: &DiscreetGpu) -> Result<(), GfxError> {
+fn mode_support_check(mode: &GfxMode) -> Result<(), GfxError> {
     if matches!(mode, GfxMode::Egpu) && !asus_egpu_exists() {
         let text = "Egpu mode requested when either the laptop doesn't support it or the kernel is not recent enough".to_string();
         return Err(GfxError::NotSupported(text));
     }
-
-    if matches!(mode, GfxMode::Compute) && dgpu.is_amd() {
-        let text = "Compute mode unsupported on AMD dGPU systems".to_string();
-        return Err(GfxError::NotSupported(text));
-    }
-
     Ok(())
 }
 

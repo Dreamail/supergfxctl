@@ -164,7 +164,6 @@ impl CtrlGraphics {
 
             cfg.vfio_enable = config.vfio_enable;
             cfg.vfio_save = config.vfio_save;
-            cfg.compute_save = config.compute_save;
             cfg.always_reboot = config.always_reboot;
             cfg.no_logind = config.no_logind;
             cfg.logout_timeout_s = config.logout_timeout_s;

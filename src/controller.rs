@@ -53,19 +53,12 @@ impl CtrlGraphics {
         let hotplug_type = config.hotplug_type;
         let always_reboot = config.always_reboot;
         let vfio_save = config.vfio_save;
-        let compute_save = config.compute_save;
 
         let mode = get_kernel_cmdline_mode()?
             .map(|mode| {
                 warn!("reload: Graphic mode {:?} set on kernel cmdline", mode);
-                let mut save = true;
-                if (matches!(mode, GfxMode::Compute) && !compute_save)
-                    || (matches!(mode, GfxMode::Vfio) && !vfio_save || !vfio_enable)
-                {
-                    save = false;
-                }
-
-                if save {
+                if !vfio_save {
+                } else {
                     config.mode = mode;
                     config.write();
                 }
@@ -96,7 +89,7 @@ impl CtrlGraphics {
         }
 
         let mut dgpu = self.dgpu.lock().await;
-        Self::do_mode_setup_tasks(mode, GfxMode::None, vfio_enable, hotplug_type, &mut dgpu)?;
+        Self::do_mode_setup_tasks(mode, vfio_enable, hotplug_type, &mut dgpu)?;
 
         info!("reload: Reloaded gfx mode: {:?}", mode);
         Ok(())
@@ -135,17 +128,6 @@ impl CtrlGraphics {
         let dgpu = self.dgpu.lock().await;
         if matches!(dgpu.vendor(), GfxVendor::Unknown) && !asus_dgpu_exists() {
             return vec![GfxMode::Integrated];
-        }
-
-        if dgpu.is_nvidia() {
-            if asus_dgpu_exists() {
-                let config = self.config.lock().await;
-                if !(config.hotplug_type == HotplugType::Asus) {
-                    list.push(GfxMode::Compute);
-                }
-            } else {
-                list.push(GfxMode::Compute);
-            }
         }
 
         let config = self.config.lock().await;
@@ -212,18 +194,13 @@ impl CtrlGraphics {
         let config = self.config.lock().await;
         let current = config.mode;
         // Modes that can switch without logout
-        if matches!(
-            current,
-            GfxMode::Integrated | GfxMode::Vfio | GfxMode::Compute
-        ) && matches!(
-            vendor,
-            GfxMode::Integrated | GfxMode::Vfio | GfxMode::Compute
-        ) {
+        if matches!(current, GfxMode::Integrated | GfxMode::Vfio)
+            && matches!(vendor, GfxMode::Integrated | GfxMode::Vfio)
+        {
             return GfxRequiredUserAction::None;
         }
         // Modes that require a switch to integrated first
-        if matches!(current, GfxMode::Hybrid) && matches!(vendor, GfxMode::Compute | GfxMode::Vfio)
-        {
+        if matches!(current, GfxMode::Hybrid) && matches!(vendor, GfxMode::Vfio) {
             return GfxRequiredUserAction::Integrated;
         }
 
@@ -251,7 +228,7 @@ impl CtrlGraphics {
             info!("do_rescan: Device rescan required");
             if asus_dgpu_exists() {
                 debug!("do_rescan: ASUS dgpu_disable found");
-                if asus_use_dgpu_disable && matches!(mode, GfxMode::Hybrid | GfxMode::Compute) {
+                if asus_use_dgpu_disable && matches!(mode, GfxMode::Hybrid) {
                     // re-enable the ASUS dgpu
                     // Ignore the error if there is one. Sometimes the kernel causes an I/O error and I'm
                     // not sure why yet. But the dgpu seems to change..
@@ -357,15 +334,13 @@ impl CtrlGraphics {
         // Since we have a lock, reset tmp to none. This thread should only ever run
         // for Integrated, Hybrid, or Nvidia. Tmp is also only for informational
         let mut config = config.lock().await;
-        let last_mode = config.tmp_mode.unwrap_or(GfxMode::None);
         config.tmp_mode = None;
 
-        if matches!(mode, GfxMode::Compute | GfxMode::Vfio) {
+        if matches!(mode, GfxMode::Vfio) {
             warn!("mode_change_loop: compute or vfio mode require setting integrated mode first");
         } else {
             Self::do_mode_setup_tasks(
                 mode,
-                last_mode,
                 config.vfio_enable,
                 hotplug_type,
                 &mut device,
@@ -437,7 +412,6 @@ impl CtrlGraphics {
     ///   + or remove drivers and devices
     pub fn do_mode_setup_tasks(
         mode: GfxMode,
-        last_mode: GfxMode,
         vfio_enable: bool,
         hotplug_type: HotplugType,
         devices: &mut DiscreetGpu,
@@ -450,7 +424,7 @@ impl CtrlGraphics {
         Self::do_rescan(mode, hotplug_type == HotplugType::Asus, devices)?;
 
         match mode {
-            GfxMode::Hybrid | GfxMode::Compute => {
+            GfxMode::Hybrid => {
                 debug("Mode match: GfxMode::Hybrid | GfxMode::Compute");
                 if vfio_enable {
                     for driver in VFIO_DRIVERS.iter() {
@@ -487,11 +461,7 @@ impl CtrlGraphics {
                 toggle_nvidia_powerd(false, devices.vendor())?;
                 if devices.vendor() == GfxVendor::Nvidia {
                     kill_nvidia_lsof()?;
-                    if last_mode != GfxMode::Compute {
-                        devices.do_driver_action(DriverAction::Remove)?;
-                    } else {
-                        warn!("Switching to integrated from compute mode. This isn't fully supported and must unbind drivers instead of unloading.");
-                    }
+                    devices.do_driver_action(DriverAction::Remove)?;
                 }
                 devices.unbind_remove()?;
                 if hotplug_type == HotplugType::Std {
@@ -556,10 +526,7 @@ impl CtrlGraphics {
             return Err(GfxError::VfioDisabled);
         }
 
-        {
-            let dgpu = self.dgpu.lock().await;
-            mode_support_check(&mode, &dgpu)?;
-        }
+            mode_support_check(&mode)?;
 
         // determine which method we need here
         let action_required = self.mode_change_action(mode).await;
@@ -580,11 +547,8 @@ impl CtrlGraphics {
             GfxRequiredUserAction::None => {
                 info!("set_gfx_mode: mode change does not require logout");
                 let mut dgpu = self.dgpu.lock().await;
-                let last_mode = {
-                    let config = self.config.lock().await;
-                    config.tmp_mode.unwrap_or(GfxMode::None)
-                };
-                Self::do_mode_setup_tasks(mode, last_mode, vfio_enable, hotplug_type, &mut dgpu)?;
+                
+                Self::do_mode_setup_tasks(mode, vfio_enable, hotplug_type, &mut dgpu)?;
                 info!(
                     "set_gfx_mode: Graphics mode changed to {}",
                     <&str>::from(mode)
@@ -594,12 +558,10 @@ impl CtrlGraphics {
                 config.pending_action = None;
                 config.pending_mode = None;
 
-                if (matches!(mode, GfxMode::Vfio) && config.vfio_save)
-                    || matches!(mode, GfxMode::Compute) && config.compute_save
-                {
+                if matches!(mode, GfxMode::Vfio) && config.vfio_save {
                     config.mode = mode;
                     config.write();
-                } else if matches!(mode, GfxMode::Vfio | GfxMode::Compute) {
+                } else if matches!(mode, GfxMode::Vfio) {
                     config.tmp_mode = Some(mode);
                 }
             }

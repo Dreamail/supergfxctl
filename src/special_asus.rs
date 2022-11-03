@@ -220,12 +220,15 @@ pub async fn asus_reload(
         }
     }
 
-    // If dgpu_disable is hard set then users won't have a dgpu at all, try set dgpu enabled
-    if !asus_use_dgpu_disable && asus_dgpu_disabled()? && mode == GfxMode::Hybrid {
-        warn!("It appears dgpu_disable is true on boot with !asus_use_dgpu_disable, will attempt to re-enable dgpu");
-        asus_dgpu_set_disabled(false)
-            .map_err(|e| error!("asus_dgpu_set_disabled: {e:?}"))
-            .ok();
+    // Need to always check if dgpu_disable exists since GA401I series and older doesn't have this
+    if asus_dgpu_exists() {
+        // If dgpu_disable is hard set then users won't have a dgpu at all, try set dgpu enabled
+        if !asus_use_dgpu_disable && asus_dgpu_disabled()? && mode == GfxMode::Hybrid {
+            warn!("It appears dgpu_disable is true on boot with !asus_use_dgpu_disable, will attempt to re-enable dgpu");
+            asus_dgpu_set_disabled(false)
+                .map_err(|e| error!("asus_dgpu_set_disabled: {e:?}"))
+                .ok();
+        }
     }
 
     // if asus_use_dgpu_disable && !always_reboot && asus_dgpu_exists() {
@@ -253,7 +256,7 @@ pub fn asus_set_mode(
 ) -> Result<(), GfxError> {
     debug!("asus_set_mode: {mode:?}, asus_use_dgpu_disable: {asus_use_dgpu_disable}");
     match mode {
-        GfxMode::Hybrid | GfxMode::Compute => {
+        GfxMode::Hybrid => {
             devices.set_hotplug(HotplugState::On)?;
             if asus_dgpu_exists() && asus_use_dgpu_disable {
                 asus_dgpu_set_disabled(false)?;

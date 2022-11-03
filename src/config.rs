@@ -4,7 +4,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use zvariant_derive::Type;
 
-use crate::config_old::{GfxConfig300, GfxConfig405};
+use crate::config_old::{GfxConfig300, GfxConfig405, GfxConfig500};
 use crate::error::GfxError;
 use crate::pci_device::{DiscreetGpu, GfxMode, GfxRequiredUserAction, HotplugType};
 use crate::{
@@ -18,7 +18,6 @@ pub struct GfxConfigDbus {
     pub mode: GfxMode,
     pub vfio_enable: bool,
     pub vfio_save: bool,
-    pub compute_save: bool,
     pub always_reboot: bool,
     pub no_logind: bool,
     pub logout_timeout_s: u64,
@@ -31,7 +30,6 @@ impl From<&GfxConfig> for GfxConfigDbus {
             mode: c.mode,
             vfio_enable: c.vfio_enable,
             vfio_save: c.vfio_save,
-            compute_save: c.compute_save,
             always_reboot: c.always_reboot,
             no_logind: c.no_logind,
             logout_timeout_s: c.logout_timeout_s,
@@ -59,8 +57,6 @@ pub struct GfxConfig {
     pub vfio_enable: bool,
     /// Save the VFIO mode so that it is reloaded on boot
     pub vfio_save: bool,
-    /// Save the Compute mode so that it is reloaded on boot
-    pub compute_save: bool,
     /// Should always reboot?
     pub always_reboot: bool,
     /// Don't use logind to see if all sessions are logged out and therefore safe to change mode
@@ -81,7 +77,6 @@ impl GfxConfig {
             pending_action: None,
             vfio_enable: false,
             vfio_save: false,
-            compute_save: false,
             always_reboot: false,
             no_logind: false,
             logout_timeout_s: 180,
@@ -111,6 +106,10 @@ impl GfxConfig {
                 config.config_path = config_path;
             } else if let Ok(data) = serde_json::from_str(&buf) {
                 let old: GfxConfig405 = data;
+                config = old.into();
+                config.config_path = config_path;
+            } else if let Ok(data) = serde_json::from_str(&buf) {
+                let old: GfxConfig500 = data;
                 config = old.into();
                 config.config_path = config_path;
             } else {
@@ -190,7 +189,7 @@ pub(crate) fn create_modprobe_conf(mode: GfxMode, devices: &DiscreetGpu) -> Resu
             base.append(&mut MODPROBE_NVIDIA_DRM_MODESET_ON.to_vec());
             base
         }
-        GfxMode::None | GfxMode::AsusMuxDiscreet | GfxMode::Compute => vec![],
+        GfxMode::None | GfxMode::AsusMuxDiscreet => vec![],
     };
 
     let mut file = std::fs::OpenOptions::new()

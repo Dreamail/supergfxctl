@@ -21,7 +21,7 @@ impl From<GfxMode300> for GfxMode {
             GfxMode300::Hybrid => GfxMode::Hybrid,
             GfxMode300::Nvidia => GfxMode::Hybrid,
             GfxMode300::Integrated => GfxMode::Integrated,
-            GfxMode300::Compute => GfxMode::Compute,
+            GfxMode300::Compute => GfxMode::Hybrid,
             GfxMode300::Vfio => GfxMode::Vfio,
             GfxMode300::Egpu => GfxMode::Egpu,
         }
@@ -45,7 +45,6 @@ impl From<GfxConfig300> for GfxConfig {
             pending_action: None,
             vfio_enable: old.gfx_vfio_enable,
             vfio_save: false,
-            compute_save: false,
             always_reboot: false,
             no_logind: false,
             logout_timeout_s: 180,
@@ -73,7 +72,6 @@ impl From<GfxConfig402> for GfxConfig {
             pending_action: None,
             vfio_enable: old.vfio_enable,
             vfio_save: old.vfio_save,
-            compute_save: old.compute_save,
             always_reboot: old.always_reboot,
             no_logind: false,
             logout_timeout_s: 180,
@@ -103,7 +101,36 @@ impl From<GfxConfig405> for GfxConfig {
             pending_action: None,
             vfio_enable: old.vfio_enable,
             vfio_save: old.vfio_save,
-            compute_save: old.compute_save,
+            always_reboot: old.always_reboot,
+            no_logind: false,
+            logout_timeout_s: 180,
+            hotplug_type: HotplugType::None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct GfxConfig500 {
+    pub mode: GfxMode,
+    pub vfio_enable: bool,
+    pub vfio_save: bool,
+    pub compute_save: bool,
+    pub always_reboot: bool,
+    pub no_logind: bool,
+    pub logout_timeout_s: u64,
+    pub hotplug_type: HotplugType,
+}
+
+impl From<GfxConfig500> for GfxConfig {
+    fn from(old: GfxConfig500) -> Self {
+        GfxConfig {
+            config_path: Default::default(),
+            mode: old.mode,
+            tmp_mode: Default::default(),
+            pending_mode: None,
+            pending_action: None,
+            vfio_enable: old.vfio_enable,
+            vfio_save: old.vfio_save,
             always_reboot: old.always_reboot,
             no_logind: false,
             logout_timeout_s: 180,
