@@ -339,12 +339,7 @@ impl CtrlGraphics {
         if matches!(mode, GfxMode::Vfio) {
             warn!("mode_change_loop: compute or vfio mode require setting integrated mode first");
         } else {
-            Self::do_mode_setup_tasks(
-                mode,
-                config.vfio_enable,
-                hotplug_type,
-                &mut device,
-            )?;
+            Self::do_mode_setup_tasks(mode, config.vfio_enable, hotplug_type, &mut device)?;
             if !no_logind {
                 do_systemd_unit_action(SystemdUnitAction::Restart, DISPLAY_MANAGER)?;
             }
@@ -526,7 +521,7 @@ impl CtrlGraphics {
             return Err(GfxError::VfioDisabled);
         }
 
-            mode_support_check(&mode)?;
+        mode_support_check(&mode)?;
 
         // determine which method we need here
         let action_required = self.mode_change_action(mode).await;
@@ -547,7 +542,7 @@ impl CtrlGraphics {
             GfxRequiredUserAction::None => {
                 info!("set_gfx_mode: mode change does not require logout");
                 let mut dgpu = self.dgpu.lock().await;
-                
+
                 Self::do_mode_setup_tasks(mode, vfio_enable, hotplug_type, &mut dgpu)?;
                 info!(
                     "set_gfx_mode: Graphics mode changed to {}",

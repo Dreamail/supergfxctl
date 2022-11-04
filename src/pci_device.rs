@@ -1,4 +1,4 @@
-use log::{debug, info, warn};
+use log::{debug, info, trace, warn};
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
 use std::process::Command;
@@ -375,7 +375,7 @@ impl Device {
             .read(true)
             .open(&path)
             .map_err(|e| GfxError::from_io(e, path.clone()))?;
-        debug!("read_file: {file:?}");
+        trace!("read_file: {file:?}");
         file.read_to_string(&mut data)
             .map_err(|e| GfxError::from_io(e, path))?;
 
@@ -389,7 +389,7 @@ impl Device {
             .write(true)
             .open(&path)
             .map_err(|e| GfxError::from_io(e, path.clone()))?;
-        debug!("write_file: {file:?}");
+        trace!("write_file: {file:?}");
         file.write_all(data.as_ref())
             .map_err(|e| GfxError::from_io(e, path))?;
 
@@ -401,7 +401,7 @@ impl Device {
         path.push("power");
         path.push("control");
         if path.exists() {
-            debug!("set_runtime_pm: {path:?}");
+            trace!("set_runtime_pm: {path:?}");
             Self::write_file(path, <&str>::from(state).as_bytes())?;
         } else {
             debug!("set_runtime_pm: {path:?} doesn't exist, device may have been removed (can be ignored)");
@@ -413,7 +413,7 @@ impl Device {
         let mut path = self.dev_path.clone();
         path.push("power");
         path.push("runtime_status");
-        debug!("get_runtime_status: {path:?}");
+        trace!("get_runtime_status: {path:?}");
         match Self::read_file(path) {
             Ok(inner) => GfxPower::from_str(inner.as_str()),
             Err(_) => Ok(GfxPower::Off),
@@ -561,18 +561,20 @@ impl DiscreetGpu {
 
     pub fn get_runtime_status(&self) -> Result<GfxPower, GfxError> {
         if !self.devices.is_empty() {
-            debug!("get_runtime_status: {:?}", self.devices[self.dgpu_index]);
+            trace!("get_runtime_status: {:?}", self.devices[self.dgpu_index]);
             if self.vendor == GfxVendor::AsusDgpuDisabled {
                 warn!("ASUS dgpu status: {:?}", self.vendor);
                 return Ok(GfxPower::AsusDisabled);
             } else if self.vendor != GfxVendor::Unknown {
                 return self.devices[self.dgpu_index].get_runtime_status();
             }
-        } else if let Ok(disabled) = asus_dgpu_disabled() {
-            debug!("No dGPU tracked. Maybe booted with dgpu_disable set via Windows");
-            info!("Is ASUS laptop, dgpu_disable = {disabled}");
-            if disabled {
-                return Ok(GfxPower::AsusDisabled);
+        } else if asus_dgpu_exists() {
+            if let Ok(disabled) = asus_dgpu_disabled() {
+                debug!("No dGPU tracked. Maybe booted with dgpu_disable set via Windows");
+                info!("Is ASUS laptop, dgpu_disable = {disabled}");
+                if disabled {
+                    return Ok(GfxPower::AsusDisabled);
+                }
             }
         }
         Err(GfxError::NotSupported(

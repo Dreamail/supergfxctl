@@ -1,20 +1,20 @@
 use std::{env, sync::Arc, time::Duration};
 
-use log::{error, info};
+use log::{error, info, warn};
 use logind_zbus::manager::ManagerProxy;
 use std::io::Write;
 use supergfxctl::{
     config::GfxConfig,
     controller::CtrlGraphics,
     error::GfxError,
-    pci_device::{GfxMode, HotplugType},
+    pci_device::{DiscreetGpu, GfxMode, GfxPower, HotplugType},
     special_asus::{asus_dgpu_exists, asus_dgpu_set_disabled},
     CONFIG_PATH, DBUS_DEST_NAME, DBUS_IFACE_PATH, VERSION,
 };
 use tokio::time::sleep;
 use zbus::{
     export::futures_util::{lock::Mutex, StreamExt},
-    Connection,
+    Connection, SignalContext,
 };
 use zvariant::ObjectPath;
 
@@ -67,6 +67,11 @@ async fn start_daemon() -> Result<(), GfxError> {
                 .await
                 .unwrap_or_else(|err| error!("Gfx controller: {}", err));
 
+            let signal_context = SignalContext::new(&connection, DBUS_IFACE_PATH)?;
+            start_notify_status(ctrl.dgpu_arc_clone(), signal_context)
+                .await
+                .ok();
+
             connection
                 .object_server()
                 .at(&ObjectPath::from_str_unchecked(DBUS_IFACE_PATH), ctrl)
@@ -88,6 +93,33 @@ async fn start_daemon() -> Result<(), GfxError> {
     loop {
         sleep(Duration::from_secs(1)).await;
     }
+}
+
+async fn start_notify_status(
+    dgpu: Arc<Mutex<DiscreetGpu>>,
+    signal_ctxt: SignalContext<'static>,
+) -> Result<(), GfxError> {
+    tokio::spawn(async move {
+        let mut last_status = GfxPower::Unknown;
+        loop {
+            let s = dgpu
+                .lock()
+                .await
+                .get_runtime_status()
+                .map_err(|e| warn!("{e}"))
+                .unwrap_or(GfxPower::Unknown);
+            if s != last_status {
+                last_status = s;
+                info!("Notify: dGPU status = {s:?}");
+                CtrlGraphics::notify_gfx_status(&signal_ctxt, &last_status)
+                    .await
+                    .map_err(|e| warn!("{e}"))
+                    .ok();
+            }
+            sleep(Duration::from_secs(1)).await;
+        }
+    });
+    Ok(())
 }
 
 async fn start_logind_tasks(config: Arc<Mutex<GfxConfig>>) {

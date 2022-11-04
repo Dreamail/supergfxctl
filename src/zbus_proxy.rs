@@ -56,33 +56,10 @@ trait Daemon {
         config: &(u32, bool, bool, bool, bool, bool, u64, bool),
     ) -> zbus::Result<()>;
 
-    /// Get the current power status:
-    /// enum GfxPower {
-    ///     Active,
-    ///     Suspended,
-    ///     Off,
-    ///     AsusDisabled,
-    ///     Unknown,
-    /// }
+    /// Get the current power status
     fn power(&self) -> zbus::Result<GfxPower>;
 
-    /// Set the graphics mode:
-    /// enum GfxMode {
-    ///     Hybrid,
-    ///     Integrated,
-    ///     Compute,
-    ///     Vfio,
-    ///     Egpu,
-    ///     None,
-    /// }
-    ///
-    /// Returns action required:
-    /// enum GfxRequiredUserAction {
-    ///     Logout,
-    ///     Integrated,
-    ///     AsusGpuMuxDisable,
-    ///     None,
-    /// }
+    /// Set the graphics mode. Returns action required.
     fn set_mode(&self, mode: &GfxMode) -> zbus::Result<GfxRequiredUserAction>;
 
     /// Get the `String` name of the pending mode change if any
@@ -91,15 +68,7 @@ trait Daemon {
     /// Get the `String` name of the pending required user action if any
     fn pending_user_action(&self) -> zbus::Result<GfxRequiredUserAction>;
 
-    /// Get the current graphics mode:
-    /// enum GfxMode {
-    ///     Hybrid,
-    ///     Integrated,
-    ///     Compute,
-    ///     Vfio,
-    ///     Egpu,
-    ///     None,
-    /// }
+    /// Get the current graphics mode
     fn mode(&self) -> zbus::Result<GfxMode>;
 
     /// Get list of supported modes
@@ -107,6 +76,13 @@ trait Daemon {
 
     /// Get the vendor name of the dGPU
     fn vendor(&self) -> zbus::Result<String>;
+
+    /// Be notified when the dgpu status changes
+    #[dbus_interface(signal)]
+    pub async fn notify_gfx_status(
+        signal_ctxt: &SignalContext<'_>,
+        status: &GfxPower,
+    ) -> zbus::Result<()>;
 
     /// NotifyAction signal
     #[dbus_proxy(signal)]

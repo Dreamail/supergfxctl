@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Rmeoved Compute mode
 - Added a check in asus_reload to help GA401I and older laptops
+- Add notify gfx power status to dbus
 
 ## [5.0.0] - 2022-10-21
 ### Added
