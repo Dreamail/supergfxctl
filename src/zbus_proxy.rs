@@ -78,11 +78,8 @@ trait Daemon {
     fn vendor(&self) -> zbus::Result<String>;
 
     /// Be notified when the dgpu status changes
-    #[dbus_interface(signal)]
-    pub async fn notify_gfx_status(
-        signal_ctxt: &SignalContext<'_>,
-        status: &GfxPower,
-    ) -> zbus::Result<()>;
+    #[dbus_proxy(signal)]
+    fn notify_gfx_status(&self, status: GfxPower) -> zbus::Result<()>;
 
     /// NotifyAction signal
     #[dbus_proxy(signal)]
