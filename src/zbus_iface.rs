@@ -189,10 +189,9 @@ impl CtrlGraphics {
     pub async fn notify_gfx_status(
         signal_ctxt: &SignalContext<'_>,
         status: &GfxPower,
- 
     ) -> zbus::Result<()> {
     }
-    
+
     /// Recieve a notification if the graphics mode changes and to which mode
     #[dbus_interface(signal)]
     async fn notify_gfx(signal_ctxt: &SignalContext<'_>, vendor: &GfxMode) -> zbus::Result<()> {}
