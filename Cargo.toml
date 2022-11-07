@@ -14,9 +14,10 @@ rust-version = "1.64"
 exclude = ["data"]
 
 [features]
-default = ["daemon", "cli"]
+default = ["daemon", "cli", "zbus_tokio"]
 daemon = ["env_logger"]
 cli = ["gumdrop"]
+zbus_tokio = ["zbus/tokio"]
 
 [lib]
 name = "supergfxctl"
@@ -39,7 +40,7 @@ serde_derive = "^1.0"
 serde_json = "^1.0"
 log = "^0.4"
 
-zbus = { version = "3.4.0", features = ["tokio"]}
+zbus = { version = "3.4.0" }
 zvariant = "^3.2"
 zvariant_derive = "^3.2"
 logind-zbus = { version = "^3.0" }
