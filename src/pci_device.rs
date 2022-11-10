@@ -1,4 +1,5 @@
 use log::{debug, info, trace, warn};
+use std::fmt::Display;
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
 use std::process::Command;
@@ -148,6 +149,19 @@ pub enum GfxMode {
     Egpu,
     AsusMuxDiscreet,
     None,
+}
+
+impl Display for GfxMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Hybrid => write!(f, "Hybrid"),
+            Self::Integrated => write!(f, "Integrated"),
+            Self::Vfio => write!(f, "VFIO"),
+            Self::Egpu => write!(f, "eGPU"),
+            Self::AsusMuxDiscreet => write!(f, "Discreet"),
+            Self::None => write!(f, "Unknown"),
+        }
+    }
 }
 
 impl FromStr for GfxMode {

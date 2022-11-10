@@ -319,7 +319,7 @@ impl CtrlGraphics {
                 }
 
                 // Don't spin at max speed
-                //sleep(SLEEP_PERIOD).await;
+                sleep(SLEEP_PERIOD).await;
             }
         }
 
