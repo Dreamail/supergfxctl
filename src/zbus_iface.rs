@@ -104,6 +104,7 @@ impl CtrlGraphics {
             error!("{}", err);
             zbus::fdo::Error::Failed(format!("GFX fail: {}", err))
         })?;
+        dbg!(msg);
 
         Self::notify_action(&ctxt, &msg)
             .await

@@ -205,6 +205,17 @@ pub enum GfxRequiredUserAction {
     None,
 }
 
+impl Display for GfxRequiredUserAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Logout => write!(f, "logout"),
+            Self::Integrated => write!(f, "switch to Integrated first"),
+            Self::AsusGpuMuxDisable => write!(f, "reboot"),
+            Self::None => write!(f, "none"),
+        }
+    }
+}
+
 impl From<GfxRequiredUserAction> for &str {
     fn from(gfx: GfxRequiredUserAction) -> &'static str {
         match gfx {
