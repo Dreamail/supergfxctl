@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Changed
 - Add "Display" to GfxMode
+- Add "Display" to GfxRequiredUserAction
 
 ## [5.0.1] - 2022-11-03
 ### Changed

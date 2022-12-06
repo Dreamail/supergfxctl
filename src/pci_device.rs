@@ -53,13 +53,14 @@ impl From<HotplugState> for &str {
     }
 }
 
-#[derive(Debug, Type, PartialEq, Eq, Copy, Clone, Deserialize, Serialize)]
+#[derive(Debug, Default, Type, PartialEq, Eq, Copy, Clone, Deserialize, Serialize)]
 pub enum GfxPower {
     Active,
     Suspended,
     Off,
     AsusDisabled,
     AsusMuxDiscreet,
+    #[default]
     Unknown,
 }
 
@@ -141,13 +142,14 @@ impl From<&GfxVendor> for &str {
     }
 }
 
-#[derive(Debug, Type, PartialEq, Eq, Copy, Clone, Deserialize, Serialize)]
+#[derive(Debug, Default, Type, PartialEq, Eq, Copy, Clone, Deserialize, Serialize)]
 pub enum GfxMode {
     Hybrid,
     Integrated,
     Vfio,
     Egpu,
     AsusMuxDiscreet,
+    #[default]
     None,
 }
 
