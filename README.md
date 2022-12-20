@@ -20,10 +20,6 @@
 sudo sed -i 's/#KillUserProcesses=no/KillUserProcesses=yes/' /etc/systemd/logind.conf
 ```
 
-**Nvidia only**
-
-- `compute`, enables Nvidia without DRM. Useful for ML/Cuda (note, nvidia only)
-
 **ASUS ROG Flow 13" only**
 
 - `egpu`, this is for certain ASUS laptops like 13" Flow to enable external GPU
@@ -75,14 +71,13 @@ refresh your session (easiest way is to reboot).
 **Switch GPU modes**
 
 * Switching to/from Hybrid mode requires a logout only. (no reboot)
-* Switching between integrated/compute/vfio is instant. (no logout or reboot)
+* Switching between integrated/vfio is instant. (no logout or reboot)
 * Mode can be set via kernel cmdline with `supergfxd.mode=`. Capitalisation does not matter.
 
 | GPU Modes  | Command                       |
 |------------|-------------------------------|
 | Integrated | supergfxctl --mode integrated |
 | Hybrid     | supergfxctl --mode hybrid     |
-| Compute    | supergfxctl --mode compute    |
 | VFIO       | supergfxctl --mode vfio       |
 
 #### supergfxctl
@@ -106,7 +101,6 @@ Optional arguments:
 1. `mode`: <MODE> : any of supported modes, must be capitalised
 2. `vfio_enable` <bool> : enable vfio switching for dGPU passthrough
 3. `vfio_save` <bool> : save vfio state in mode (so it sticks between boots)
-4. `compute_save` <bool> : save compute state in mode (so it sticks between boots)
 5. `always_reboot` <bool> : always require a reboot to change modes (helps some laptops)
 6. `no_logind` <bool> : don't use logind to see if all sessions are logged out and therefore safe to change mode. This will be useful for people not using a login manager. Ignored if `always_reboot` is set.
 7. `logout_timeout_s` <u64> : the timeout in seconds to wait for all user graphical sessions to end. Default is 3 minutes, 0 = infinite. Ignored if `no_logind` or `always_reboot` is set.
