@@ -249,7 +249,14 @@ fn lscpi(vendor_device: &str) -> Result<String, GfxError> {
 }
 
 pub fn lscpi_dgpu_check(label: &str) -> bool {
-    for pat in ["Radeon RX", "AMD/ATI", "GeForce", "Geforce", "Quadro"] {
+    for pat in [
+        "Radeon RX",
+        "AMD/ATI",
+        "GeForce",
+        "Geforce",
+        "Quadro",
+        "T1200",
+    ] {
         if label.contains(pat) {
             return true;
         }
