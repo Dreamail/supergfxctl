@@ -151,6 +151,20 @@ pub fn asus_egpu_exists() -> bool {
     false
 }
 
+pub fn asus_egpu_enabled() -> Result<bool, GfxError> {
+    let path = Path::new(ASUS_EGPU_ENABLE_PATH);
+    let mut file = OpenOptions::new()
+        .read(true)
+        .open(path)
+        .map_err(|err| GfxError::Path(ASUS_EGPU_ENABLE_PATH.to_string(), err))?;
+    let mut buf = String::new();
+    file.read_to_string(&mut buf)?;
+    if buf.contains('1') {
+        return Ok(true);
+    }
+    Ok(false)
+}
+
 /// Special ASUS only feature. On toggle to `on` it will rescan the PCI bus.
 pub fn asus_egpu_set_enabled(enabled: bool) -> Result<(), GfxError> {
     debug!("asus_egpu_set_enabled: {enabled}");
@@ -182,7 +196,10 @@ fn asus_gpu_toggle(status: bool, path: &str) -> Result<(), GfxError> {
 }
 
 /// To be called in main reload code. Specific actions required for asus laptops depending
-/// on is dgpu_disable or mux is available
+/// on is dgpu_disable, egpu_enable, or gpu_mux_mode are available.
+///
+/// The returned mode may be different to the requested mode depending on the bios settings active,
+/// the differing value *must* be used.
 pub async fn asus_boot_safety_check(
     mode: GfxMode,
     asus_use_dgpu_disable: bool,
@@ -198,8 +215,8 @@ pub async fn asus_boot_safety_check(
             // let mut cmd = Command::new("reboot");
             // cmd.spawn()?;
         }
-        warn!("asus_boot_safety_check: HotPlug type Asus is set but asus-wmi appear not loaded yet. Trying for 3 seconds. If there are issues you may need to add asus_nb_wmi to modules.load.d");
-        let mut count = 3000 / 50;
+        warn!("asus_boot_safety_check: HotPlug type Asus is set but asus-wmi appear not loaded yet. Trying for 2 seconds. If there are issues you may need to add asus_nb_wmi to modules.load.d");
+        let mut count = 2000 / 50;
         while !asus_dgpu_exists() && count != 0 {
             sleep(Duration::from_millis(50)).await;
             count -= 1;
@@ -207,37 +224,43 @@ pub async fn asus_boot_safety_check(
     }
 
     if has_asus_gpu_mux() {
-        if let Ok(mux_mode) = get_asus_gpu_mux_mode() {
-            if mux_mode == AsusGpuMuxMode::Discreet {
-                info!("asus_boot_safety_check: ASUS GPU MUX is in discreet mode");
-                if asus_dgpu_exists() {
-                    if let Ok(d) = asus_dgpu_disabled() {
-                        if d {
-                            error!("asus_boot_safety_check: dgpu_disable is on while gpu_mux_mode is descrete, can't continue safely, attempting to set dgpu_disable off");
-                            asus_dgpu_set_disabled(false)?;
-                            panic!("asus_boot_safety_check: dgpu_disable is on while gpu_mux_mode is descrete, can't continue safely. Check logs");
-                        } else {
-                            info!("asus_boot_safety_check: dgpu_disable is off");
-                        }
-                    }
+        match get_asus_gpu_mux_mode()? {
+            AsusGpuMuxMode::Discreet => {
+                if asus_dgpu_exists() && asus_dgpu_disabled()? {
+                    error!("asus_boot_safety_check: dgpu_disable is on while gpu_mux_mode is descrete, can't continue safely, attempting to set dgpu_disable off");
+                    asus_dgpu_set_disabled(false)?;
+                } else {
+                    info!("asus_boot_safety_check: dgpu_disable is off");
                 }
                 return Ok(GfxMode::AsusMuxDgpu);
-            } else if mux_mode == AsusGpuMuxMode::Optimus && mode == GfxMode::AsusMuxDgpu {
-                warn!("asus_boot_safety_check: MUX is in Optimus mode but mode is set to AsusMuxDgpu. Switching to Hybrid");
-                return Ok(GfxMode::Hybrid);
+            }
+            AsusGpuMuxMode::Optimus => {
+                if mode == GfxMode::AsusMuxDgpu {
+                    warn!("asus_boot_safety_check: MUX is in Optimus mode but mode is set to AsusMuxDgpu. Switching to Hybrid");
+                    return Ok(GfxMode::Hybrid);
+                }
             }
         }
     }
 
     // Need to always check if dgpu_disable exists since GA401I series and older doesn't have this
     if asus_dgpu_exists() {
+        let dgpu_disabled = asus_dgpu_disabled()?;
         // If dgpu_disable is hard set then users won't have a dgpu at all, try set dgpu enabled
-        if !asus_use_dgpu_disable && asus_dgpu_disabled()? && mode == GfxMode::Hybrid {
+        if !asus_use_dgpu_disable && dgpu_disabled {
             warn!("It appears dgpu_disable is true on boot with HotPlug type not set to Asus, will attempt to re-enable dgpu");
             asus_dgpu_set_disabled(false)
                 .map_err(|e| error!("asus_dgpu_set_disabled: {e:?}"))
                 .ok();
+        } else if dgpu_disabled && mode != GfxMode::Integrated {
+            warn!("asus_boot_safety_check: dgpu_disable is on but the mode isn't Integrated, setting mode to Integrated");
+            return Ok(GfxMode::Integrated);
         }
+    }
+
+    if asus_egpu_exists() && asus_egpu_enabled()? && mode != GfxMode::AsusEgpu {
+        warn!("asus_boot_safety_check: egpu_enable is on but the mode isn't AsusEgpu, setting mode to AsusEgpu");
+        return Ok(GfxMode::AsusEgpu);
     }
 
     Ok(mode)

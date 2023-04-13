@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refactor asus egpu handling
 - Add a "NvidiaNoModeset" mode specially for machines like the GA401I series
 - Enable ASUS MUX control
-
+- Better boot safety checks of dgpu_disable, egpu_enable, gpu_mux_mode
 ### **Breaking**
 - Dbus args for get/set mode changed to:
   - Hybrid,
