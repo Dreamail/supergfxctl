@@ -1,9 +1,12 @@
 use std::fmt;
 use std::{error, path::PathBuf};
 
+use crate::actions::StagedAction;
+
 #[derive(Debug)]
 pub enum GfxError {
     ParseVendor,
+    ParseMode,
     DgpuNotFound,
     Udev(String, std::io::Error),
     SystemdUnitAction(String),
@@ -21,6 +24,8 @@ pub enum GfxError {
     Io(PathBuf, std::io::Error),
     Zbus(zbus::Error),
     ZbusFdo(zbus::fdo::Error),
+    /// `IncorrectActionOrder(this_action, last_action)`
+    IncorrectActionOrder(StagedAction, StagedAction),
 }
 
 impl GfxError {
@@ -34,6 +39,7 @@ impl fmt::Display for GfxError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             GfxError::ParseVendor => write!(f, "Could not parse vendor name"),
+            GfxError::ParseMode => write!(f, "Could not parse mode name"),
             GfxError::DgpuNotFound => write!(
                 f,
                 "Didn't find dgpu. If this is an ASUS ROG/TUF laptop this is okay"
@@ -76,6 +82,10 @@ impl fmt::Display for GfxError {
             }
             GfxError::Zbus(detail) => write!(f, "Zbus error: {}", detail),
             GfxError::ZbusFdo(detail) => write!(f, "Zbus error: {}", detail),
+            GfxError::IncorrectActionOrder(this_action, last_action) => write!(
+                f,
+                "The order of actions is incorrect: {last_action:?} should not be before {this_action:?}"
+            ),
         }
     }
 }

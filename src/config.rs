@@ -4,9 +4,10 @@ use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use zvariant_derive::Type;
 
+use crate::actions::UserActionRequired;
 use crate::config_old::{GfxConfig300, GfxConfig405, GfxConfig500};
 use crate::error::GfxError;
-use crate::pci_device::{DiscreetGpu, GfxMode, GfxRequiredUserAction, HotplugType};
+use crate::pci_device::{DiscreetGpu, GfxMode, HotplugType};
 use crate::{
     MODPROBE_INTEGRATED, MODPROBE_NVIDIA_BASE, MODPROBE_NVIDIA_DRM_MODESET_ON, MODPROBE_PATH,
     MODPROBE_VFIO,
@@ -52,7 +53,7 @@ pub struct GfxConfig {
     pub pending_mode: Option<GfxMode>,
     /// Just for tracking the required user action
     #[serde(skip)]
-    pub pending_action: Option<GfxRequiredUserAction>,
+    pub pending_action: Option<UserActionRequired>,
     /// Set if vfio option is enabled. This requires the vfio drivers to be built as modules
     pub vfio_enable: bool,
     /// Save the VFIO mode so that it is reloaded on boot
@@ -168,14 +169,14 @@ fn create_vfio_conf(devices: &DiscreetGpu) -> Vec<u8> {
     conf
 }
 
-pub(crate) fn create_modprobe_conf(mode: GfxMode, devices: &DiscreetGpu) -> Result<(), GfxError> {
-    if devices.is_amd() {
+pub(crate) fn create_modprobe_conf(mode: GfxMode, device: &DiscreetGpu) -> Result<(), GfxError> {
+    if device.is_amd() {
         return Ok(());
     }
 
     let content = match mode {
-        GfxMode::Hybrid | GfxMode::Egpu => {
-            if devices.is_nvidia() {
+        GfxMode::Hybrid | GfxMode::AsusEgpu | GfxMode::NvidiaNoModeset => {
+            if device.is_nvidia() {
                 let mut base = MODPROBE_NVIDIA_BASE.to_vec();
                 base.append(&mut MODPROBE_NVIDIA_DRM_MODESET_ON.to_vec());
                 base
@@ -183,13 +184,13 @@ pub(crate) fn create_modprobe_conf(mode: GfxMode, devices: &DiscreetGpu) -> Resu
                 return Ok(());
             }
         }
-        GfxMode::Vfio => create_vfio_conf(devices),
+        GfxMode::Vfio => create_vfio_conf(device),
         GfxMode::Integrated => {
             let mut base = MODPROBE_INTEGRATED.to_vec();
             base.append(&mut MODPROBE_NVIDIA_DRM_MODESET_ON.to_vec());
             base
         }
-        GfxMode::None | GfxMode::AsusMuxDiscreet => vec![],
+        GfxMode::None | GfxMode::AsusMuxDgpu => vec![],
     };
 
     let mut file = std::fs::OpenOptions::new()

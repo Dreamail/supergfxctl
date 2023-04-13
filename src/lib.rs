@@ -33,6 +33,12 @@ pub mod pci_device;
 /// Systemd helpers
 pub mod systemd;
 
+/// The actual actions that supergfx uses for each step
+pub mod actions;
+
+#[cfg(test)]
+mod tests;
+
 /// Helper to expose the current crate version to external code
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Generic path that is used to save the daemon config state
@@ -103,7 +109,7 @@ impl From<DriverAction> for &str {
 
 /// Basic check for support. If `()` returned everything is kosher.
 fn mode_support_check(mode: &GfxMode) -> Result<(), GfxError> {
-    if matches!(mode, GfxMode::Egpu) && !asus_egpu_exists() {
+    if matches!(mode, GfxMode::AsusEgpu) && !asus_egpu_exists() {
         let text = "Egpu mode requested when either the laptop doesn't support it or the kernel is not recent enough".to_string();
         return Err(GfxError::NotSupported(text));
     }
@@ -204,6 +210,11 @@ pub fn kill_nvidia_lsof() -> Result<(), GfxError> {
         return Ok(());
     }
 
+    if !PathBuf::from("/usr/bin/lsof").exists() {
+        warn!("The lsof util is missing from your system, please ensure it is available so processes hogging Nvidia can be nuked");
+        return Ok(());
+    }
+
     let mut cmd = Command::new("lsof");
     cmd.arg("/dev/nvidia0");
 
@@ -255,6 +266,28 @@ pub fn get_kernel_cmdline_mode() -> Result<Option<GfxMode>, GfxError> {
     }
 
     info!("supergfxd.mode not set, ignoring");
+    Ok(None)
+}
+
+pub fn get_kernel_cmdline_nvidia_modeset() -> Result<Option<bool>, GfxError> {
+    let path = Path::new(KERNEL_CMDLINE);
+    let mut file = OpenOptions::new()
+        .read(true)
+        .open(path)
+        .map_err(|err| GfxError::Path(KERNEL_CMDLINE.to_string(), err))?;
+    let mut buf = String::new();
+    file.read_to_string(&mut buf)?;
+
+    // No need to be fast here, just check and go
+    for cmd in buf.split(' ') {
+        if cmd.contains("nvidia-drm.modeset=") {
+            let mode = cmd.trim_start_matches("nvidia-drm.modeset=");
+            let mode = mode == "1";
+            return Ok(Some(mode));
+        }
+    }
+
+    info!("nvidia-drm.modeset not set, ignoring");
     Ok(None)
 }
 
