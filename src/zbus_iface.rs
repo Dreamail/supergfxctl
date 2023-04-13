@@ -4,8 +4,9 @@ use zbus::SignalContext;
 use zvariant::ObjectPath;
 
 use crate::{
+    actions::UserActionRequired,
     config::GfxConfigDbus,
-    pci_device::{GfxMode, GfxPower, GfxRequiredUserAction},
+    pci_device::{GfxMode, GfxPower},
     special_asus::{get_asus_gpu_mux_mode, AsusGpuMuxMode},
     DBUS_IFACE_PATH, VERSION,
 };
@@ -20,18 +21,30 @@ impl CtrlGraphics {
     }
 
     /// Get the current graphics mode:
+    /// ```rust
     /// enum GfxMode {
     ///     Hybrid,
     ///     Integrated,
-    ///     Compute,
+    ///     NvidiaNoModeset,
     ///     Vfio,
-    ///     Egpu,
+    ///     AsusEgpu,
+    ///     AsusMuxDgpu,
     ///     None,
     /// }
+    /// # use supergfxctl::pci_device;
+    /// # assert_eq!(pci_device::GfxMode::None as u8, 6);
+    /// # assert_eq!(pci_device::GfxMode::Hybrid as u8, GfxMode::Hybrid as u8);
+    /// # assert_eq!(pci_device::GfxMode::Integrated as u8, GfxMode::Integrated as u8);
+    /// # assert_eq!(pci_device::GfxMode::NvidiaNoModeset  as u8, GfxMode::NvidiaNoModeset as u8);
+    /// # assert_eq!(pci_device::GfxMode::Vfio as u8, GfxMode::Vfio as u8);
+    /// # assert_eq!(pci_device::GfxMode::AsusEgpu as u8, GfxMode::AsusEgpu as u8);
+    /// # assert_eq!(pci_device::GfxMode::AsusMuxDgpu as u8, GfxMode::AsusMuxDgpu as u8);
+    /// # assert_eq!(pci_device::GfxMode::None as u8, GfxMode::None as u8);
+    /// ```
     async fn mode(&self) -> zbus::fdo::Result<GfxMode> {
         if let Ok(state) = get_asus_gpu_mux_mode() {
             if state == AsusGpuMuxMode::Discreet {
-                return Ok(GfxMode::AsusMuxDiscreet);
+                return Ok(GfxMode::AsusMuxDgpu);
             }
         }
         let config = self.config.lock().await;
@@ -45,7 +58,7 @@ impl CtrlGraphics {
     async fn supported(&self) -> zbus::fdo::Result<Vec<GfxMode>> {
         if let Ok(state) = get_asus_gpu_mux_mode() {
             if state == AsusGpuMuxMode::Discreet {
-                return Ok(vec![GfxMode::AsusMuxDiscreet]);
+                return Ok(vec![GfxMode::AsusMuxDgpu]);
             }
         }
         Ok(self.get_supported_modes().await)
@@ -78,33 +91,54 @@ impl CtrlGraphics {
     }
 
     /// Set the graphics mode:
+    /// ```rust
     /// enum GfxMode {
     ///     Hybrid,
     ///     Integrated,
-    ///     Compute,
+    ///     NvidiaNoModeset,
     ///     Vfio,
-    ///     Egpu,
+    ///     AsusEgpu,
+    ///     AsusMuxDgpu,
     ///     None,
     /// }
+    /// # use supergfxctl::pci_device;
+    /// # assert_eq!(pci_device::GfxMode::None as u8, 6);
+    /// # assert_eq!(pci_device::GfxMode::Hybrid as u8, GfxMode::Hybrid as u8);
+    /// # assert_eq!(pci_device::GfxMode::Integrated as u8, GfxMode::Integrated as u8);
+    /// # assert_eq!(pci_device::GfxMode::NvidiaNoModeset  as u8, GfxMode::NvidiaNoModeset as u8);
+    /// # assert_eq!(pci_device::GfxMode::Vfio as u8, GfxMode::Vfio as u8);
+    /// # assert_eq!(pci_device::GfxMode::AsusEgpu as u8, GfxMode::AsusEgpu as u8);
+    /// # assert_eq!(pci_device::GfxMode::AsusMuxDgpu as u8, GfxMode::AsusMuxDgpu as u8);
+    /// # assert_eq!(pci_device::GfxMode::None as u8, GfxMode::None as u8);
+    /// ```
     ///
     /// Returns action required:
-    /// enum GfxRequiredUserAction {
+    /// ```rust
+    /// enum UserActionRequired {
     ///     Logout,
-    ///     Integrated,
-    ///     AsusGpuMuxDisable,
-    ///     None,
+    ///     Reboot,
+    ///     SwitchToIntegrated,
+    ///     AsusEgpuDisable,
+    ///     Nothing,
     /// }
+    /// # use supergfxctl::actions;
+    /// # assert_eq!(actions::UserActionRequired::Nothing as u8, 4);
+    /// # assert_eq!(actions::UserActionRequired::Logout as u8, UserActionRequired::Logout as u8);
+    /// # assert_eq!(actions::UserActionRequired::Reboot as u8, UserActionRequired::Reboot as u8);
+    /// # assert_eq!(actions::UserActionRequired::SwitchToIntegrated as u8, UserActionRequired::SwitchToIntegrated as u8);
+    /// # assert_eq!(actions::UserActionRequired::AsusEgpuDisable as u8, UserActionRequired::AsusEgpuDisable as u8);
+    /// # assert_eq!(actions::UserActionRequired::Nothing as u8, UserActionRequired::Nothing as u8);
+    /// ```
     async fn set_mode(
         &mut self,
         #[zbus(signal_context)] ctxt: SignalContext<'_>,
         mode: GfxMode,
-    ) -> zbus::fdo::Result<GfxRequiredUserAction> {
-        info!("Switching gfx mode to {}", <&str>::from(mode));
+    ) -> zbus::fdo::Result<UserActionRequired> {
+        info!("Switching gfx mode to {mode}");
         let msg = self.set_gfx_mode(mode).await.map_err(|err| {
             error!("{}", err);
             zbus::fdo::Error::Failed(format!("GFX fail: {}", err))
         })?;
-        dbg!(msg);
 
         Self::notify_action(&ctxt, &msg)
             .await
@@ -123,7 +157,7 @@ impl CtrlGraphics {
     }
 
     /// Get the `String` name of the pending required user action if any
-    async fn pending_user_action(&self) -> zbus::fdo::Result<GfxRequiredUserAction> {
+    async fn pending_user_action(&self) -> zbus::fdo::Result<UserActionRequired> {
         Ok(self.get_pending_user_action().await)
     }
 
@@ -201,7 +235,7 @@ impl CtrlGraphics {
     #[dbus_interface(signal)]
     async fn notify_action(
         signal_ctxt: &SignalContext<'_>,
-        action: &GfxRequiredUserAction,
+        action: &UserActionRequired,
     ) -> zbus::Result<()> {
     }
 }

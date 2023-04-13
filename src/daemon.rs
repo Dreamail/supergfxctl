@@ -1,6 +1,6 @@
 use std::{env, sync::Arc, time::Duration};
 
-use log::{debug, error, info, warn};
+use log::{error, info, trace};
 use logind_zbus::manager::ManagerProxy;
 use std::io::Write;
 use supergfxctl::{
@@ -106,14 +106,14 @@ async fn start_notify_status(
                 .lock()
                 .await
                 .get_runtime_status()
-                .map_err(|e| warn!("{e}"))
+                .map_err(|e| trace!("{e}"))
                 .unwrap_or(GfxPower::Unknown);
             if s != last_status {
                 last_status = s;
-                debug!("Notify: dGPU status = {s:?}");
+                trace!("Notify: dGPU status = {s:?}");
                 CtrlGraphics::notify_gfx_status(&signal_ctxt, &last_status)
                     .await
-                    .map_err(|e| warn!("{e}"))
+                    .map_err(|e| trace!("{e}"))
                     .ok();
             }
             sleep(Duration::from_secs(1)).await;

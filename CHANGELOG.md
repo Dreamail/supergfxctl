@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Add "Display" to GfxMode
 - Add "Display" to GfxRequiredUserAction
+- Refactor architecture to actions plus action lists that are dependant on which mode is booted and which mode switching to/from
+- Refactor asus egpu handling
+- Add a "NvidiaNoModeset" mode specially for machines like the GA401I series
+- Enable ASUS MUX control
+
+### **Breaking**
+- Dbus args for get/set mode changed to:
+  - Hybrid,
+  - Integrated,
+  - NvidiaNoModeset,
+  - Vfio,
+  - AsusEgpu,
+  - AsusMuxDgpu,
+  - None,
 
 ## [5.0.1] - 2022-11-03
 ### Changed

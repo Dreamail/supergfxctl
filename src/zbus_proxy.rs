@@ -23,7 +23,10 @@
 
 use zbus::dbus_proxy;
 
-use crate::pci_device::{GfxMode, GfxPower, GfxRequiredUserAction};
+use crate::{
+    actions::UserActionRequired,
+    pci_device::{GfxMode, GfxPower},
+};
 
 #[dbus_proxy(
     interface = "org.supergfxctl.Daemon",
@@ -60,13 +63,13 @@ trait Daemon {
     fn power(&self) -> zbus::Result<GfxPower>;
 
     /// Set the graphics mode. Returns action required.
-    fn set_mode(&self, mode: &GfxMode) -> zbus::Result<GfxRequiredUserAction>;
+    fn set_mode(&self, mode: &GfxMode) -> zbus::Result<UserActionRequired>;
 
     /// Get the `String` name of the pending mode change if any
     fn pending_mode(&self) -> zbus::Result<GfxMode>;
 
     /// Get the `String` name of the pending required user action if any
-    fn pending_user_action(&self) -> zbus::Result<GfxRequiredUserAction>;
+    fn pending_user_action(&self) -> zbus::Result<UserActionRequired>;
 
     /// Get the current graphics mode
     fn mode(&self) -> zbus::Result<GfxMode>;
@@ -83,7 +86,7 @@ trait Daemon {
 
     /// NotifyAction signal
     #[dbus_proxy(signal)]
-    fn notify_action(&self, action: GfxRequiredUserAction) -> zbus::Result<()>;
+    fn notify_action(&self, action: UserActionRequired) -> zbus::Result<()>;
 
     /// NotifyGfx signal
     #[dbus_proxy(signal)]

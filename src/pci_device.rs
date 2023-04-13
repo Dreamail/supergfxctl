@@ -142,13 +142,19 @@ impl From<&GfxVendor> for &str {
     }
 }
 
+/// All the available modes. Every mode except `None` and `AsusMuxDgpu` should assume that either
+/// the ASUS specific `gpu_mux_mode` sysfs entry is not available or is set to iGPU mode.
 #[derive(Debug, Default, Type, PartialEq, Eq, Copy, Clone, Deserialize, Serialize)]
 pub enum GfxMode {
     Hybrid,
     Integrated,
+    /// This mode is for folks using `nomodeset=0` on certain hardware. It allows hot unloading of nvidia
+    NvidiaNoModeset,
     Vfio,
-    Egpu,
-    AsusMuxDiscreet,
+    /// The ASUS EGPU is in use
+    AsusEgpu,
+    /// The ASUS GPU MUX is set to dGPU mode
+    AsusMuxDgpu,
     #[default]
     None,
 }
@@ -156,11 +162,12 @@ pub enum GfxMode {
 impl Display for GfxMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Hybrid => write!(f, "Hybrid"),
-            Self::Integrated => write!(f, "Integrated"),
-            Self::Vfio => write!(f, "VFIO"),
-            Self::Egpu => write!(f, "eGPU"),
-            Self::AsusMuxDiscreet => write!(f, "Discreet"),
+            Self::Hybrid => write!(f, "{:?}", &self),
+            Self::Integrated => write!(f, "{:?}", &self),
+            Self::NvidiaNoModeset => write!(f, "{:?}", &self),
+            Self::Vfio => write!(f, "{:?}", &self),
+            Self::AsusEgpu => write!(f, "{:?}", &self),
+            Self::AsusMuxDgpu => write!(f, "{:?}", &self),
             Self::None => write!(f, "Unknown"),
         }
     }
@@ -170,68 +177,15 @@ impl FromStr for GfxMode {
     type Err = GfxError;
 
     fn from_str(s: &str) -> Result<Self, GfxError> {
-        match s.to_lowercase().trim() {
-            "hybrid" => Ok(GfxMode::Hybrid),
-            "integrated" => Ok(GfxMode::Integrated),
-            "vfio" => Ok(GfxMode::Vfio),
-            "egpu" => Ok(GfxMode::Egpu),
-            _ => Err(GfxError::ParseVendor),
+        match s.trim() {
+            "Hybrid" => Ok(GfxMode::Hybrid),
+            "Integrated" => Ok(GfxMode::Integrated),
+            "NvidiaNoModeset" => Ok(GfxMode::NvidiaNoModeset),
+            "Vfio" => Ok(GfxMode::Vfio),
+            "AsusEgpu" => Ok(GfxMode::AsusEgpu),
+            "AsusMuxDgpu" => Ok(GfxMode::AsusMuxDgpu),
+            _ => Err(GfxError::ParseMode),
         }
-    }
-}
-
-impl From<GfxMode> for &str {
-    fn from(gfx: GfxMode) -> &'static str {
-        match gfx {
-            GfxMode::Hybrid => "hybrid",
-            GfxMode::Integrated => "integrated",
-            GfxMode::Vfio => "vfio",
-            GfxMode::Egpu => "egpu",
-            GfxMode::AsusMuxDiscreet => "asus_mux_discreet",
-            GfxMode::None => "none",
-        }
-    }
-}
-
-impl From<&GfxMode> for &str {
-    fn from(gfx: &GfxMode) -> &'static str {
-        (*gfx).into()
-    }
-}
-
-#[derive(Debug, Type, PartialEq, Eq, Copy, Clone, Deserialize, Serialize)]
-pub enum GfxRequiredUserAction {
-    Logout,
-    Integrated,
-    AsusGpuMuxDisable,
-    None,
-}
-
-impl Display for GfxRequiredUserAction {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Logout => write!(f, "logout"),
-            Self::Integrated => write!(f, "switch to Integrated first"),
-            Self::AsusGpuMuxDisable => write!(f, "reboot"),
-            Self::None => write!(f, "none"),
-        }
-    }
-}
-
-impl From<GfxRequiredUserAction> for &str {
-    fn from(gfx: GfxRequiredUserAction) -> &'static str {
-        match gfx {
-            GfxRequiredUserAction::Logout => "logout",
-            GfxRequiredUserAction::Integrated => "switch to integrated first",
-            GfxRequiredUserAction::None => "none",
-            GfxRequiredUserAction::AsusGpuMuxDisable => "The GPU MUX is in Discreet mode, supergfx can not change modes until the MUX is changed back to Optimus mode.",
-        }
-    }
-}
-
-impl From<&GfxRequiredUserAction> for &str {
-    fn from(gfx: &GfxRequiredUserAction) -> &'static str {
-        (*gfx).into()
     }
 }
 
@@ -351,14 +305,20 @@ impl Device {
                             // Assumes that the enumeration is always in order, so things on the same bus after the dGPU
                             // are attached. Look at parent system name to match
                             let dgpu = if let Some(boot_vga) = device.attribute_value("boot_vga") {
+                                debug!("Found non-boot_vga {id} at {:?}", device.sysname());
                                 class.starts_with("30") && boot_vga == "0"
                             } else if let Some(label) =
                                 device.property_value("ID_MODEL_FROM_DATABASE")
                             {
+                                debug!(
+                                    "Found ID_MODEL_FROM_DATABASE property {id} at {:?} : {label:?}",
+                                    device.sysname()
+                                );
                                 lscpi_dgpu_check(&label.to_string_lossy())
                             } else {
                                 // last resort - this is typically only required if ID_MODEL_FROM_DATABASE is
                                 // missing due to dgpu_disable being on at boot
+                                debug!("Didn't find dGPU with standard methods, using last resort for id:{id} at {:?}", device.sysname());
                                 lscpi_dgpu_check(&lscpi(&id)?)
                             };
 
@@ -597,20 +557,27 @@ impl DiscreetGpu {
         if !self.devices.is_empty() {
             trace!("get_runtime_status: {:?}", self.devices[self.dgpu_index]);
             if self.vendor == GfxVendor::AsusDgpuDisabled {
-                warn!("ASUS dgpu status: {:?}", self.vendor);
+                //warn!("ASUS dgpu status: {:?}", self.vendor);
                 return Ok(GfxPower::AsusDisabled);
             } else if self.vendor != GfxVendor::Unknown {
                 return self.devices[self.dgpu_index].get_runtime_status();
             }
         } else if asus_dgpu_exists() {
             if let Ok(disabled) = asus_dgpu_disabled() {
-                debug!("No dGPU tracked. Maybe booted with dgpu_disable set via Windows");
-                info!("Is ASUS laptop, dgpu_disable = {disabled}");
+                trace!("No dGPU tracked. Maybe booted with dgpu_disable=1 or gpu_mux_mode=0");
+                // info!("Is ASUS laptop, dgpu_disable = {disabled}");
                 if disabled {
                     return Ok(GfxPower::AsusDisabled);
                 }
             }
+        } else if has_asus_gpu_mux() {
+            if let Ok(mode) = get_asus_gpu_mux_mode() {
+                if mode == AsusGpuMuxMode::Discreet {
+                    return Ok(GfxPower::AsusMuxDiscreet);
+                }
+            }
         }
+
         Err(GfxError::NotSupported(
             "get_runtime_status: Could not find dGPU".to_string(),
         ))

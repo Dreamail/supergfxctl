@@ -2,9 +2,7 @@
 
 use std::{env::args, process::Command};
 use supergfxctl::{
-    error::GfxError,
-    pci_device::{GfxMode, GfxRequiredUserAction},
-    special_asus::{get_asus_gpu_mux_mode, has_asus_gpu_mux, AsusGpuMuxMode},
+    actions::UserActionRequired, error::GfxError, pci_device::GfxMode,
     zbus_proxy::DaemonProxyBlocking,
 };
 
@@ -82,36 +80,26 @@ fn do_gfx(command: CliStart) -> Result<(), GfxError> {
     let proxy = DaemonProxyBlocking::new(&conn)?;
 
     if let Some(mode) = command.mode {
-        if has_asus_gpu_mux() && get_asus_gpu_mux_mode()? == AsusGpuMuxMode::Discreet {
-            eprintln!("You can not change modes until you turn the GPU MUX off and reboot");
-            std::process::exit(1);
-        }
-
         let res = proxy.set_mode(&mode)?;
         match res {
-            GfxRequiredUserAction::Integrated => {
-                eprintln!(
-                    "You must change to Integrated before you can change to {}",
-                    <&str>::from(mode)
-                );
+            UserActionRequired::SwitchToIntegrated => {
+                eprintln!("You must change to Integrated before you can change to {mode}",);
                 std::process::exit(1);
             }
-            GfxRequiredUserAction::Logout => {
+            UserActionRequired::Logout => {
                 println!(
-                    "Graphics mode changed to {}. Required user action is: {}",
-                    <&str>::from(mode),
+                    "Graphics mode changed to {mode}. Required user action is: {}",
                     <&str>::from(res)
                 );
             }
-            GfxRequiredUserAction::None => {
-                println!("Graphics mode changed to {}", <&str>::from(mode));
+            UserActionRequired::Nothing => {
+                println!("Graphics mode changed to {mode}");
             }
-            GfxRequiredUserAction::AsusGpuMuxDisable => {
-                println!(
-                    "{:?}",
-                    <&str>::from(GfxRequiredUserAction::AsusGpuMuxDisable)
-                );
+
+            UserActionRequired::Reboot => {
+                println!("A reboot is required to complete the mode change")
             }
+            UserActionRequired::AsusEgpuDisable => println!("{res:?}"),
         }
     }
 
@@ -121,7 +109,7 @@ fn do_gfx(command: CliStart) -> Result<(), GfxError> {
     }
     if command.get {
         let res = proxy.mode()?;
-        println!("{}", <&str>::from(res));
+        println!("{res}");
     }
     if command.supported {
         let res = proxy.supported()?;
@@ -141,7 +129,7 @@ fn do_gfx(command: CliStart) -> Result<(), GfxError> {
     }
     if command.pend_mode {
         let res = proxy.pending_mode()?;
-        println!("{}", <&str>::from(&res));
+        println!("{res}");
     }
 
     Ok(())

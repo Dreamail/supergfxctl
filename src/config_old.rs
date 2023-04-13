@@ -23,7 +23,7 @@ impl From<GfxMode300> for GfxMode {
             GfxMode300::Integrated => GfxMode::Integrated,
             GfxMode300::Compute => GfxMode::Hybrid,
             GfxMode300::Vfio => GfxMode::Vfio,
-            GfxMode300::Egpu => GfxMode::Egpu,
+            GfxMode300::Egpu => GfxMode::AsusEgpu,
         }
     }
 }
