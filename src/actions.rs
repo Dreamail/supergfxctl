@@ -195,22 +195,22 @@ impl StagedAction {
         vendor: GfxVendor,
         mode: GfxMode,
     ) -> Vec<StagedAction> {
-        let kill_nvidia = if vendor == GfxVendor::Nvidia {
+        let kill_gpu_use = if vendor == GfxVendor::Nvidia {
             Self::KillNvidia
         } else {
-            Self::None
+            Self::KillAmd
         };
 
         let disable_nvidia_powerd = if vendor == GfxVendor::Nvidia {
             Self::DisableNvidiaPowerd
         } else {
-            Self::None
+            Self::NotNvidia
         };
 
         let enable_nvidia_powerd = if vendor == GfxVendor::Nvidia {
             Self::EnableNvidiaPowerd
         } else {
-            Self::None
+            Self::NotNvidia
         };
 
         let hotplug_rm_type = match config.hotplug_type {
@@ -234,23 +234,25 @@ impl StagedAction {
                 enable_nvidia_powerd,
             ],
             GfxMode::Integrated | GfxMode::NvidiaNoModeset => vec![
-                Self::WriteModprobeConf,
                 disable_nvidia_powerd,
+                kill_gpu_use,
+                Self::UnloadGpuDrivers,
+                Self::UnbindRemoveGpu,
+                Self::WriteModprobeConf,
                 hotplug_rm_type,
             ],
             GfxMode::Vfio => vec![
                 disable_nvidia_powerd,
-                kill_nvidia,
-                Self::UnbindRemoveGpu,
+                kill_gpu_use,
                 Self::UnloadGpuDrivers,
                 Self::WriteModprobeConf,
                 Self::LoadVfioDrivers,
             ],
             GfxMode::AsusEgpu => vec![
                 disable_nvidia_powerd,
-                kill_nvidia,
-                Self::UnbindRemoveGpu,
+                kill_gpu_use,
                 Self::UnloadGpuDrivers,
+                Self::UnbindRemoveGpu,
                 Self::WriteModprobeConf,
                 Self::AsusEgpuEnable,
                 Self::RescanPci,
