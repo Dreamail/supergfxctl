@@ -109,7 +109,7 @@ impl From<DriverAction> for &str {
 
 /// Basic check for support. If `()` returned everything is kosher.
 fn mode_support_check(mode: &GfxMode) -> Result<(), GfxError> {
-    if matches!(mode, GfxMode::AsusEgpu) && !asus_egpu_exists() {
+    if matches!(mode, GfxMode::AsusEgpu) && !asus_egpu_enable_exists() {
         let text = "Egpu mode requested when either the laptop doesn't support it or the kernel is not recent enough".to_string();
         return Err(GfxError::NotSupported(text));
     }

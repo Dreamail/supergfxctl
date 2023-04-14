@@ -12,7 +12,7 @@ use crate::{
 use crate::{
     error::GfxError,
     pci_device::{DiscreetGpu, GfxVendor, RuntimePowerManagement},
-    special_asus::{asus_dgpu_exists, asus_egpu_exists},
+    special_asus::{asus_dgpu_disable_exists, asus_egpu_enable_exists},
     *,
 };
 
@@ -56,7 +56,7 @@ impl CtrlGraphics {
             return Ok(());
         }
 
-        if matches!(mode, GfxMode::AsusEgpu) && !asus_egpu_exists() {
+        if matches!(mode, GfxMode::AsusEgpu) && !asus_egpu_enable_exists() {
             warn!("reload: Tried to set egpu mode but it is not supported");
             return Ok(());
         }
@@ -100,7 +100,7 @@ impl CtrlGraphics {
         let mut list = vec![GfxMode::Integrated, GfxMode::Hybrid];
 
         let dgpu = self.dgpu.lock().await;
-        if matches!(dgpu.vendor(), GfxVendor::Unknown) && !asus_dgpu_exists() {
+        if matches!(dgpu.vendor(), GfxVendor::Unknown) && !asus_dgpu_disable_exists() {
             return vec![GfxMode::Integrated];
         }
 
@@ -109,11 +109,11 @@ impl CtrlGraphics {
             list.push(GfxMode::Vfio);
         }
 
-        if asus_egpu_exists() {
+        if asus_egpu_enable_exists() {
             list.push(GfxMode::AsusEgpu);
         }
 
-        if has_asus_gpu_mux() {
+        if asus_gpu_mux_exists() {
             list.push(GfxMode::AsusMuxDgpu);
         }
 

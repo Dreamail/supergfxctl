@@ -68,11 +68,11 @@ impl From<char> for AsusGpuMuxMode {
     }
 }
 
-pub fn has_asus_gpu_mux() -> bool {
+pub fn asus_gpu_mux_exists() -> bool {
     Path::new(ASUS_GPU_MUX_PATH).exists()
 }
 
-pub fn get_asus_gpu_mux_mode() -> Result<AsusGpuMuxMode, GfxError> {
+pub fn asus_gpu_mux_mode() -> Result<AsusGpuMuxMode, GfxError> {
     let path = ASUS_GPU_MUX_PATH;
     let mut file = OpenOptions::new()
         .read(true)
@@ -106,7 +106,7 @@ pub fn asus_gpu_mux_set_igpu(igpu_on: bool) -> Result<(), GfxError> {
     Ok(())
 }
 
-pub fn asus_dgpu_exists() -> bool {
+pub fn asus_dgpu_disable_exists() -> bool {
     if Path::new(ASUS_DGPU_DISABLE_PATH).exists() {
         return true;
     }
@@ -129,6 +129,10 @@ pub fn asus_dgpu_disabled() -> Result<bool, GfxError> {
 
 /// Special ASUS only feature. On toggle to `off` it will rescan the PCI bus.
 pub fn asus_dgpu_set_disabled(disabled: bool) -> Result<(), GfxError> {
+    // Do not try to set it again if it has already been changed
+    if asus_dgpu_disabled()? {
+        return Ok(());
+    }
     debug!("asus_dgpu_set_disabled: {disabled}");
     // There is a sleep here because this function is generally called after a hotplug
     // enable, and the deivces require at least a touch of time to finish powering up/down
@@ -144,7 +148,7 @@ pub fn asus_dgpu_set_disabled(disabled: bool) -> Result<(), GfxError> {
     Ok(())
 }
 
-pub fn asus_egpu_exists() -> bool {
+pub fn asus_egpu_enable_exists() -> bool {
     if Path::new(ASUS_EGPU_ENABLE_PATH).exists() {
         return true;
     }
@@ -167,6 +171,10 @@ pub fn asus_egpu_enabled() -> Result<bool, GfxError> {
 
 /// Special ASUS only feature. On toggle to `on` it will rescan the PCI bus.
 pub fn asus_egpu_set_enabled(enabled: bool) -> Result<(), GfxError> {
+    if asus_egpu_enabled()? {
+        // Do not try to set it again if it has already been changedif asus_egpu_enabled()? {
+        return Ok(());
+    }
     debug!("asus_egpu_set_enabled: {enabled}");
     // There is a sleep here because this function is generally called after a hotplug
     // enable, and the deivces require at least a touch of time to finish powering up
@@ -206,7 +214,7 @@ pub async fn asus_boot_safety_check(
 ) -> Result<GfxMode, GfxError> {
     debug!("asus_reload: asus_use_dgpu_disable: {asus_use_dgpu_disable}");
     // This is a bit of a crap cycle to ensure that dgpu_disable is there before setting it.
-    if asus_use_dgpu_disable && !asus_dgpu_exists() {
+    if asus_use_dgpu_disable && !asus_dgpu_disable_exists() {
         if !create_asus_modules_load_conf()? {
             warn!(
                 "asus_boot_safety_check: Reboot required due to {} creation",
@@ -217,16 +225,16 @@ pub async fn asus_boot_safety_check(
         }
         warn!("asus_boot_safety_check: HotPlug type Asus is set but asus-wmi appear not loaded yet. Trying for 2 seconds. If there are issues you may need to add asus_nb_wmi to modules.load.d");
         let mut count = 2000 / 50;
-        while !asus_dgpu_exists() && count != 0 {
+        while !asus_dgpu_disable_exists() && count != 0 {
             sleep(Duration::from_millis(50)).await;
             count -= 1;
         }
     }
 
-    if has_asus_gpu_mux() {
-        match get_asus_gpu_mux_mode()? {
+    if asus_gpu_mux_exists() {
+        match asus_gpu_mux_mode()? {
             AsusGpuMuxMode::Discreet => {
-                if asus_dgpu_exists() && asus_dgpu_disabled()? {
+                if asus_dgpu_disable_exists() && asus_dgpu_disabled()? {
                     error!("asus_boot_safety_check: dgpu_disable is on while gpu_mux_mode is descrete, can't continue safely, attempting to set dgpu_disable off");
                     asus_dgpu_set_disabled(false)?;
                 } else {
@@ -244,7 +252,7 @@ pub async fn asus_boot_safety_check(
     }
 
     // Need to always check if dgpu_disable exists since GA401I series and older doesn't have this
-    if asus_dgpu_exists() {
+    if asus_dgpu_disable_exists() {
         let dgpu_disabled = asus_dgpu_disabled()?;
         // If dgpu_disable is hard set then users won't have a dgpu at all, try set dgpu enabled
         if !asus_use_dgpu_disable && dgpu_disabled {
@@ -258,7 +266,7 @@ pub async fn asus_boot_safety_check(
         }
     }
 
-    if asus_egpu_exists() && asus_egpu_enabled()? && mode != GfxMode::AsusEgpu {
+    if asus_egpu_enable_exists() && asus_egpu_enabled()? && mode != GfxMode::AsusEgpu {
         warn!("asus_boot_safety_check: egpu_enable is on but the mode isn't AsusEgpu, setting mode to AsusEgpu");
         return Ok(GfxMode::AsusEgpu);
     }

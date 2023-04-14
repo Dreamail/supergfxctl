@@ -8,7 +8,7 @@ use supergfxctl::{
     controller::CtrlGraphics,
     error::GfxError,
     pci_device::{DiscreetGpu, GfxMode, GfxPower, HotplugType},
-    special_asus::{asus_dgpu_exists, asus_dgpu_set_disabled},
+    special_asus::{asus_dgpu_disable_exists, asus_dgpu_set_disabled},
     CONFIG_PATH, DBUS_DEST_NAME, DBUS_IFACE_PATH, VERSION,
 };
 use tokio::time::sleep;
@@ -140,7 +140,7 @@ async fn start_logind_tasks(config: Arc<Mutex<GfxConfig>>) {
                         let config = config.lock().await;
                         if config.mode == GfxMode::Integrated
                             && config.hotplug_type == HotplugType::Asus
-                            && asus_dgpu_exists()
+                            && asus_dgpu_disable_exists()
                         {
                             info!("logind task: Waking from suspend, setting dgpu_disable");
                             asus_dgpu_set_disabled(true)

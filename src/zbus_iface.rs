@@ -7,7 +7,7 @@ use crate::{
     actions::UserActionRequired,
     config::GfxConfigDbus,
     pci_device::{GfxMode, GfxPower},
-    special_asus::{get_asus_gpu_mux_mode, AsusGpuMuxMode},
+    special_asus::{asus_gpu_mux_mode, AsusGpuMuxMode},
     DBUS_IFACE_PATH, VERSION,
 };
 
@@ -42,7 +42,7 @@ impl CtrlGraphics {
     /// # assert_eq!(pci_device::GfxMode::None as u8, GfxMode::None as u8);
     /// ```
     async fn mode(&self) -> zbus::fdo::Result<GfxMode> {
-        if let Ok(state) = get_asus_gpu_mux_mode() {
+        if let Ok(state) = asus_gpu_mux_mode() {
             if state == AsusGpuMuxMode::Discreet {
                 return Ok(GfxMode::AsusMuxDgpu);
             }
@@ -56,7 +56,7 @@ impl CtrlGraphics {
 
     /// Get list of supported modes
     async fn supported(&self) -> zbus::fdo::Result<Vec<GfxMode>> {
-        if let Ok(state) = get_asus_gpu_mux_mode() {
+        if let Ok(state) = asus_gpu_mux_mode() {
             if state == AsusGpuMuxMode::Discreet {
                 return Ok(vec![GfxMode::AsusMuxDgpu]);
             }
@@ -78,7 +78,7 @@ impl CtrlGraphics {
     ///     Unknown,
     /// }
     async fn power(&self) -> zbus::fdo::Result<GfxPower> {
-        if let Ok(state) = get_asus_gpu_mux_mode() {
+        if let Ok(state) = asus_gpu_mux_mode() {
             if state == AsusGpuMuxMode::Discreet {
                 return Ok(GfxPower::AsusMuxDiscreet);
             }

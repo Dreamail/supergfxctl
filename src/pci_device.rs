@@ -8,7 +8,8 @@ use std::{fs::write, path::PathBuf};
 
 use crate::error::GfxError;
 use crate::special_asus::{
-    asus_dgpu_disabled, asus_dgpu_exists, get_asus_gpu_mux_mode, has_asus_gpu_mux, AsusGpuMuxMode,
+    asus_dgpu_disable_exists, asus_dgpu_disabled, asus_gpu_mux_exists, asus_gpu_mux_mode,
+    AsusGpuMuxMode,
 };
 use crate::{do_driver_action, find_slot_power, DriverAction, NVIDIA_DRIVERS};
 
@@ -506,7 +507,7 @@ impl DiscreetGpu {
         } else {
             warn!("DiscreetGpu::new: no devices??");
             let mut vendor = GfxVendor::Unknown;
-            if asus_dgpu_exists()
+            if asus_dgpu_disable_exists()
                 && if let Ok(c) = asus_dgpu_disabled() {
                     c
                 } else {
@@ -515,8 +516,8 @@ impl DiscreetGpu {
             {
                 warn!("ASUS dGPU appears to be disabled");
                 vendor = GfxVendor::AsusDgpuDisabled;
-            } else if has_asus_gpu_mux()
-                && if let Ok(c) = get_asus_gpu_mux_mode() {
+            } else if asus_gpu_mux_exists()
+                && if let Ok(c) = asus_gpu_mux_mode() {
                     c == AsusGpuMuxMode::Discreet
                 } else {
                     false
@@ -562,7 +563,7 @@ impl DiscreetGpu {
             } else if self.vendor != GfxVendor::Unknown {
                 return self.devices[self.dgpu_index].get_runtime_status();
             }
-        } else if asus_dgpu_exists() {
+        } else if asus_dgpu_disable_exists() {
             if let Ok(disabled) = asus_dgpu_disabled() {
                 trace!("No dGPU tracked. Maybe booted with dgpu_disable=1 or gpu_mux_mode=0");
                 // info!("Is ASUS laptop, dgpu_disable = {disabled}");
@@ -570,8 +571,8 @@ impl DiscreetGpu {
                     return Ok(GfxPower::AsusDisabled);
                 }
             }
-        } else if has_asus_gpu_mux() {
-            if let Ok(mode) = get_asus_gpu_mux_mode() {
+        } else if asus_gpu_mux_exists() {
+            if let Ok(mode) = asus_gpu_mux_mode() {
                 if mode == AsusGpuMuxMode::Discreet {
                     return Ok(GfxPower::AsusMuxDiscreet);
                 }

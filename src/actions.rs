@@ -249,13 +249,7 @@ impl StagedAction {
                 Self::LoadVfioDrivers,
             ],
             GfxMode::AsusEgpu => vec![
-                disable_nvidia_powerd,
-                kill_gpu_use,
-                Self::UnloadGpuDrivers,
-                Self::UnbindRemoveGpu,
                 Self::WriteModprobeConf,
-                Self::AsusEgpuEnable,
-                Self::RescanPci,
                 Self::LoadGpuDrivers,
                 enable_nvidia_powerd,
             ],
