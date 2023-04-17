@@ -38,7 +38,7 @@ ASUS laptops require a kernel 5.15.x or newer.
 First you need to install the dev packages required.
 
 * Debian/Ubuntu: `sudo apt update && sudo apt install curl git build-essential`
-* Fedora/RHEL: `sudo dnf upgrade && sudo dnf install curl git @development_tools`
+* Fedora/RHEL: `sudo dnf upgrade && sudo dnf install curl git && sudo dnf groupinstall "Development Tools"`
 * Arch/Manjaro: `sudo pacman -Syu && sudo pacman -S curl git base-devel`
 
 **Install Rust**
