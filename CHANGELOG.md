@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - AsusEgpu,
   - AsusMuxDgpu,
   - None,
+### Notes:
+- The ASUS Egpu is still in a state of testing. Although it works, something in the process causes a reboot. From what I know of the ACPI calls made to toggle this mode the cause lies somewhere like probing the PCI with rescan before the internal switching process has completed - there is meant to be a notification to the OS by the call in ACPI when it finishes but I've yet to fully understand how to enable that in the kernel (and the work must be done in the kernel, the reboot isn't the fault of supergfxd). For now the Egpu is usable after that reboot. The same is said for the switch back to hybrid/integrated.
+- The ASUS MUX toggle always requires a reboot due to how it works internally in the ACPI.
+- ASUS dgpu_disable is able to be set to be used for Integrated, but it may or may not work well for the same reasons as egpu above.
+- If you dual boot with Windows then the states of dgpu_disable, egpu_enable, and gpu_mux_mode should be picked up by supergfxd and the OS put in the right mode - vice versa for Windows.
 
 ## [5.0.1] - 2022-11-03
 ### Changed
