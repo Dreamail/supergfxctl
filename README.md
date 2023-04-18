@@ -20,9 +20,13 @@
 sudo sed -i 's/#KillUserProcesses=no/KillUserProcesses=yes/' /etc/systemd/logind.conf
 ```
 
-**ASUS ROG Flow 13" only**
+**ASUS ROG Flow series only**
 
-- `egpu`, this is for certain ASUS laptops like 13" Flow to enable external GPU
+- `AsusEgpu`, this is for certain ASUS laptops like 13" Flow to enable external GPU. The option shows up automatically if detected.
+
+**Other ASUS gaming laptops**
+
+- `AsusMuxDgpu`, toggle the ASUS MUX to use dGPU as primary. The option shows up automatically if detected. (A reboot is *always* required due to how this works in ACPI)
 
 This switcher conflicts with other gpu switchers like optimus-manager, suse-prime
 or ubuntu-prime, system76-power, and bbswitch. If you have issues with `supergfxd`
@@ -31,7 +35,7 @@ stray configs blocking nvidia modules from loading in:
 - `/etc/modprobe.d/`
 - `/usr/lib/modprope.d/`
 
-ASUS laptops require a kernel 5.15.x or newer.
+ASUS laptops require a kernel 6.1.x or newer.
 
 ## Building
 
@@ -76,9 +80,11 @@ refresh your session (easiest way is to reboot).
 
 | GPU Modes  | Command                       |
 |------------|-------------------------------|
-| Integrated | supergfxctl --mode integrated |
-| Hybrid     | supergfxctl --mode hybrid     |
-| VFIO       | supergfxctl --mode vfio       |
+| Integrated | supergfxctl --mode Integrated |
+| Hybrid     | supergfxctl --mode Hybrid     |
+| VFIO       | supergfxctl --mode Vfio       |
+| AsusEgpu   | supergfxctl --mode AsusEgpu   |
+| AsusMuxDgpu| supergfxctl --mode AsusMuxDgpu|
 
 #### supergfxctl
 
@@ -112,7 +118,7 @@ Optional arguments:
 
 #### Graphics switching notes
 
-**ASUS G-Sync + ASUS GPU-MUX note:** Some ASUS laptops are capable of using the dGPU as the sole GPU in the system which is generally to enable g-sync on the laptop display panel. This is controlled by asusctl at this time, and may be added to supergfxd later. If mux/g-sync is enabled then supergfxd will halt itself until it is disabled again.
+**ASUS G-Sync + ASUS GPU-MUX note:** This can also be set by asusctl. If you don't require anything but Hybrid mode usually, then asusctl may be the better option for you if you also want the ability to toggle the MUX sometimes.
 
 **vfio note:** The vfio modules *must not* be compiled into the kernel, they need
 to be separate modules. If you don't plan to use vfio mode then you can ignore this
