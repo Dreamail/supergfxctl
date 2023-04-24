@@ -10,9 +10,9 @@
 **Xorg is no-longer supported (but supergfxd still works with it)**
 
 `supergfxd` can switch graphics modes between:
-- `hybrid`, enables dGPU-offload mode
-- `integrated`, uses the iGPU only and force-disables the dGPU
-- `vfio`, binds the dGPU to vfio for VM pass-through
+- `Hybrid`, enables dGPU-offload mode
+- `Integrated`, uses the iGPU only and force-disables the dGPU
+- `Vfio`, binds the dGPU to vfio for VM pass-through
 
 **If rebootless switch fails:** you may need the following:
 
@@ -27,6 +27,7 @@ sudo sed -i 's/#KillUserProcesses=no/KillUserProcesses=yes/' /etc/systemd/logind
 **Other ASUS gaming laptops**
 
 - `AsusMuxDgpu`, toggle the ASUS MUX to use dGPU as primary. The option shows up automatically if detected. (A reboot is *always* required due to how this works in ACPI)
+- `hotplug_type` config option, see end of this doc.
 
 This switcher conflicts with other gpu switchers like optimus-manager, suse-prime
 or ubuntu-prime, system76-power, and bbswitch. If you have issues with `supergfxd`
