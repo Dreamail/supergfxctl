@@ -304,6 +304,8 @@ impl StagedAction {
             HotplugType::None => Self::DevTreeManaged,
         };
 
+        // Be verbose in this list of actions. It's okay to have repeated blocks as this makes it much clearer
+        // which action chain results from which switching combo
         match from {
             GfxMode::Hybrid => match to {
                 GfxMode::Integrated => Action::StagedActions(vec![
@@ -359,9 +361,14 @@ impl StagedAction {
                     Self::LoadGpuDrivers,
                     enable_nvidia_powerd,
                 ]),
-                GfxMode::Vfio => {
-                    Action::StagedActions(vec![Self::WriteModprobeConf, Self::LoadVfioDrivers])
-                }
+                GfxMode::Vfio => Action::StagedActions(vec![
+                    Self::RescanPci, // Make the PCI devices available
+                    disable_nvidia_powerd,
+                    kill_gpu_use,
+                    Self::UnloadGpuDrivers, // rescan can load the gpu drivers automatically
+                    Self::WriteModprobeConf,
+                    Self::LoadVfioDrivers,
+                ]),
                 GfxMode::AsusEgpu => Action::StagedActions(vec![
                     wait_logout,
                     stop_display,
@@ -410,12 +417,17 @@ impl StagedAction {
             },
             GfxMode::Vfio => match to {
                 GfxMode::Hybrid | GfxMode::NvidiaNoModeset => Action::StagedActions(vec![
+                    kill_gpu_use,
                     Self::UnloadVfioDrivers,
                     Self::WriteModprobeConf,
                     Self::RescanPci,
                     Self::LoadGpuDrivers,
                 ]),
-                GfxMode::Integrated => Action::StagedActions(vec![Self::UnloadVfioDrivers]),
+                GfxMode::Integrated => Action::StagedActions(vec![
+                    kill_gpu_use,
+                    Self::UnloadVfioDrivers,
+                    Self::UnbindRemoveGpu,
+                ]),
                 GfxMode::AsusEgpu => Action::StagedActions(vec![
                     wait_logout,
                     stop_display,
