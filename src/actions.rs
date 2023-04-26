@@ -162,8 +162,10 @@ pub enum StagedAction {
     /// A none-action marker to specify an intent, in this case not using ASUS or hotplug device removal and only dev-tree unbind/remove
     DevTreeManaged,
     RescanPci,
-    /// Unbind the device from a driver (typically )
+    /// Unbind and fully remove the device from a driver (typically )
     UnbindRemoveGpu,
+    /// Unbind only, device is still in PCI tree
+    UnbindGpu,
     /// If hotplug is available then the dgpu can be hot-removed
     HotplugUnplug,
     /// If hotplug is available then the dgpu can be hot-plugged
@@ -361,11 +363,12 @@ impl StagedAction {
                     enable_nvidia_powerd,
                 ]),
                 GfxMode::Vfio => Action::StagedActions(vec![
+                    Self::WriteModprobeConf,
                     Self::RescanPci, // Make the PCI devices available
                     disable_nvidia_powerd,
                     kill_gpu_use,
                     Self::UnloadGpuDrivers, // rescan can load the gpu drivers automatically
-                    Self::WriteModprobeConf,
+                    Self::UnbindGpu,
                     Self::LoadVfioDrivers,
                 ]),
                 GfxMode::AsusEgpu => Action::StagedActions(vec![
@@ -525,6 +528,7 @@ impl StagedAction {
             StagedAction::DisableNvidiaPowerd => toggle_nvidia_powerd(false, device.vendor()),
             StagedAction::RescanPci => rescan_pci(device),
             StagedAction::UnbindRemoveGpu => device.unbind_remove(),
+            StagedAction::UnbindGpu => device.unbind(),
             StagedAction::HotplugUnplug => device.set_hotplug(HotplugState::Off),
             StagedAction::HotplugPlug => device.set_hotplug(HotplugState::On),
             StagedAction::AsusDgpuDisable => asus_dgpu_set_disabled(true),
