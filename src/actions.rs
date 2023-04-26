@@ -73,12 +73,10 @@ impl UserActionRequired {
                 GfxMode::AsusMuxDgpu => Self::Reboot,
             },
             GfxMode::Vfio => match current_mode {
-                GfxMode::Integrated
-                | GfxMode::Hybrid
-                | GfxMode::Vfio
-                | GfxMode::NvidiaNoModeset
-                | GfxMode::None => Self::Nothing,
-                GfxMode::AsusEgpu => Self::Logout,
+                GfxMode::Integrated | GfxMode::Vfio | GfxMode::NvidiaNoModeset | GfxMode::None => {
+                    Self::Nothing
+                }
+                GfxMode::AsusEgpu | GfxMode::Hybrid => Self::Logout,
                 GfxMode::AsusMuxDgpu => Self::Reboot,
             },
             GfxMode::AsusEgpu => match current_mode {
@@ -113,14 +111,15 @@ impl Display for UserActionRequired {
 }
 
 impl From<UserActionRequired> for &str {
+    /// Convert the action to a verbose string
     fn from(gfx: UserActionRequired) -> &'static str {
         match gfx {
-            UserActionRequired::Logout => "logout",
-            UserActionRequired::Reboot => "reboot",
-            UserActionRequired::SwitchToIntegrated => "switch to integrated first",
-            UserActionRequired::Nothing => "none",
+            UserActionRequired::Logout => "Logout required to complete mode change",
+            UserActionRequired::Reboot => "Reboot required to complete mode change",
+            UserActionRequired::SwitchToIntegrated => "You must switch to Integrated first",
+            UserActionRequired::Nothing => "No action required",
             UserActionRequired::AsusEgpuDisable => {
-                "The mode must be switched to Integrated of Hybrid first"
+                "The mode must be switched to Integrated or Hybrid first"
             }
         }
     }
