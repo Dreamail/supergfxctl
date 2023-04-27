@@ -38,6 +38,16 @@ stray configs blocking nvidia modules from loading in:
 
 ASUS laptops require a kernel 6.1.x or newer.
 
+**Runtime D3**
+
+Most Nvidia laptops support different levels of runtime power management that can prolong battery life. These have been buggy in some use cases, so they are not set by default. To configure these, copy this text into a file other than `supergfxd.conf` in `/etc/modprobe.d/` and modify it to meet your needs.
+```
+# 0x00 - no power management, 0x01 - coarse power management, 0x02 - fine power management
+options nvidia NVreg_DynamicPowerManagement=0x02
+```
+
+More information is available [here](https://download.nvidia.com/XFree86/Linux-x86_64/530.41.03/README/dynamicpowermanagement.html).
+
 ## Building
 
 First you need to install the dev packages required.
