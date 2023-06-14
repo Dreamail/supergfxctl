@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+- Fix Asus disable_dgpu mode re-enable of dgpu
+
 ## [5.1.1] - 2023-4-26
 ### Changed
 - Adjust the internal action list for VFIO mode
@@ -13,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Notes:
 - The ASUS Egpu is still in a state of testing. It works, but you must plug it in and flick the switch before changing modes.
 - The ASUS MUX toggle always requires a reboot due to how it works internally in the ACPI. The iGPU may still be available.
-  - If you have an encrypted disk you may need to bliindly enter your password. A black screen does not always mean boot failed, it's an artifact of kernel boot plus this MUX. 
+  - If you have an encrypted disk you may need to bliindly enter your password. A black screen does not always mean boot failed, it's an artifact of kernel boot plus this MUX.
 - ASUS dgpu_disable is able to be set to be used for Integrated, but it may or may not work well for the same reasons as egpu above.
 - If you dual boot with Windows then the states of dgpu_disable, egpu_enable, and gpu_mux_mode should be picked up by supergfxd and the OS put in the right mode - vice versa for Windows.
 ### Changed
