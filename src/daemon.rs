@@ -16,7 +16,7 @@ use zbus::{
     export::futures_util::{lock::Mutex, StreamExt},
     Connection, SignalContext,
 };
-use zvariant::ObjectPath;
+use zbus::zvariant::ObjectPath;
 
 #[tokio::main]
 async fn main() -> Result<(), GfxError> {

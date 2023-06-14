@@ -2,7 +2,7 @@ use log::{error, info, warn};
 use serde_derive::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
-use zvariant_derive::Type;
+use zbus::zvariant::Type;
 
 use crate::actions::UserActionRequired;
 use crate::config_old::{GfxConfig300, GfxConfig405, GfxConfig500};

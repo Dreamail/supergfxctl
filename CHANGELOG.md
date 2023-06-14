@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Changed
 - Fix Asus disable_dgpu mode re-enable of dgpu
+- Update zbus deps
 
 ## [5.1.1] - 2023-4-26
 ### Changed

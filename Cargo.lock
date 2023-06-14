@@ -542,9 +542,9 @@ checksum = "b06a4cde4c0f271a446782e3eff8de789548ce57dbc8eca9292c27f4a42004b4"
 
 [[package]]
 name = "logind-zbus"
-version = "3.1.0"
+version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f2cfc54565c8d002ad7344ec08ce512c269b2de56dea59850708691e4b18fe3"
+checksum = "14b36b364be05220b24411a1c1a1ee4df0ba77b09c9880e70e5f4c16ebdec157"
 dependencies = [
  "serde",
  "zbus",
@@ -876,8 +876,6 @@ dependencies = [
  "tokio",
  "udev",
  "zbus",
- "zvariant",
- "zvariant_derive",
 ]
 
 [[package]]

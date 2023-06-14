@@ -1,7 +1,7 @@
 use ::zbus::dbus_interface;
 use log::{error, info, warn};
 use zbus::SignalContext;
-use zvariant::ObjectPath;
+use zbus::zvariant::ObjectPath;
 
 use crate::{
     actions::UserActionRequired,

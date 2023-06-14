@@ -15,7 +15,7 @@ use logind_zbus::{
 use serde::{Deserialize, Serialize};
 use tokio::time::sleep;
 use zbus::Connection;
-use zvariant::Type;
+use zbus::zvariant::Type;
 
 use crate::{
     config::{create_modprobe_conf, GfxConfig},

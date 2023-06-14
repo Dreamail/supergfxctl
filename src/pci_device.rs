@@ -14,7 +14,7 @@ use crate::special_asus::{
 use crate::{do_driver_action, find_slot_power, DriverAction, NVIDIA_DRIVERS};
 
 use serde_derive::{Deserialize, Serialize};
-use zvariant_derive::Type;
+use zbus::zvariant::Type;
 
 const PCI_BUS_PATH: &str = "/sys/bus/pci";
 
