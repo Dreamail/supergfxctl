@@ -130,7 +130,8 @@ pub fn asus_dgpu_disabled() -> Result<bool, GfxError> {
 /// Special ASUS only feature. On toggle to `off` it will rescan the PCI bus.
 pub fn asus_dgpu_set_disabled(disabled: bool) -> Result<(), GfxError> {
     // Do not try to set it again if it has already been changed
-    if asus_dgpu_disabled()? {
+    if asus_dgpu_disabled()? == disabled {
+        debug!("asus_dgpu_set_disabled: already set to {disabled}. Early return");
         return Ok(());
     }
     debug!("asus_dgpu_set_disabled: {disabled}");
