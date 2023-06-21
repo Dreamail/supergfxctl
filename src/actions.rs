@@ -283,12 +283,13 @@ impl StagedAction {
         };
 
         let mut kill_gpu_use = Self::NotNvidia;
-        let mut disable_nvidia_powerd = Self::NotNvidia;
-        let mut enable_nvidia_powerd = Self::NotNvidia;
+        // the nvida powerd toggle function only runs if the vendor is nvidia
+        let disable_nvidia_powerd = Self::EnableNvidiaPowerd;
+        let enable_nvidia_powerd = Self::EnableNvidiaPowerd;
         if vendor == GfxVendor::Nvidia {
             kill_gpu_use = Self::KillNvidia;
-            disable_nvidia_powerd = Self::DisableNvidiaPowerd;
-            enable_nvidia_powerd = Self::EnableNvidiaPowerd;
+            // disable_nvidia_powerd = Self::DisableNvidiaPowerd;
+            // enable_nvidia_powerd = Self::EnableNvidiaPowerd;
         } else if vendor == GfxVendor::Amd {
             kill_gpu_use = Self::KillAmd;
         }

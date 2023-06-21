@@ -170,19 +170,15 @@ fn create_vfio_conf(devices: &DiscreetGpu) -> Vec<u8> {
 }
 
 pub(crate) fn create_modprobe_conf(mode: GfxMode, device: &DiscreetGpu) -> Result<(), GfxError> {
-    if device.is_amd() {
+    if device.is_amd() || device.is_intel() {
         return Ok(());
     }
 
     let content = match mode {
         GfxMode::Hybrid | GfxMode::AsusEgpu | GfxMode::NvidiaNoModeset => {
-            if device.is_nvidia() {
-                let mut base = MODPROBE_NVIDIA_BASE.to_vec();
-                base.append(&mut MODPROBE_NVIDIA_DRM_MODESET_ON.to_vec());
-                base
-            } else {
-                return Ok(());
-            }
+            let mut base = MODPROBE_NVIDIA_BASE.to_vec();
+            base.append(&mut MODPROBE_NVIDIA_DRM_MODESET_ON.to_vec());
+            base
         }
         GfxMode::Vfio => create_vfio_conf(device),
         GfxMode::Integrated => {

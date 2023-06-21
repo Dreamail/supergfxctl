@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Changed
 - Fix Asus disable_dgpu mode re-enable of dgpu
+- Fix writing the correct modprobe if switching from Integrated to Hybrid when Asus hotplug_mode is enabled
 - Update zbus deps
 
 ## [5.1.1] - 2023-4-26
