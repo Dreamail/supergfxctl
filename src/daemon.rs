@@ -12,11 +12,11 @@ use supergfxctl::{
     CONFIG_PATH, DBUS_DEST_NAME, DBUS_IFACE_PATH, VERSION,
 };
 use tokio::time::sleep;
+use zbus::zvariant::ObjectPath;
 use zbus::{
     export::futures_util::{lock::Mutex, StreamExt},
     Connection, SignalContext,
 };
-use zbus::zvariant::ObjectPath;
 
 #[tokio::main]
 async fn main() -> Result<(), GfxError> {
