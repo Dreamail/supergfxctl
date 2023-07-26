@@ -158,16 +158,13 @@ impl CtrlGraphics {
 
         let actions = StagedAction::action_list_for_boot(config, device.vendor(), mode);
 
-        let mut failed = false;
         for action in actions {
-            action
-                .perform(mode, device, loop_exit.clone())
-                .await
-                .map_err(|e| {
-                    failed = true;
-                    error!("Action thread errored: {e}");
-                })
-                .ok();
+            let res = action.perform(mode, device, loop_exit.clone()).await;
+
+            match res {
+                Ok(_) => {}
+                Err(e) => error!("Action thread errored: {e}"),
+            }
         }
 
         device.set_runtime_pm(RuntimePowerManagement::Auto)?;
@@ -219,14 +216,20 @@ impl CtrlGraphics {
                     for action in actions {
                         debug!("Doing action: {action:?}");
                         let mut dgpu = dgpu.lock().await;
-                        action
-                            .perform(mode, &mut dgpu, loop_exit.clone())
-                            .await
-                            .map_err(|e| {
+
+                        let res = action.perform(mode, &mut dgpu, loop_exit.clone()).await;
+                        match res {
+                            Ok(_) => {}
+                            Err(GfxError::SystemdUnitWaitTimeout(e)) => {
+                                error!("Action thread errored: {e}");
                                 failed = true;
-                                error!("Action thread perform errored: {e}");
-                            })
-                            .ok();
+                                break;
+                            }
+                            Err(e) => {
+                                error!("Action thread errored: {e}");
+                                failed = true;
+                            }
+                        }
                     }
 
                     let mut config = config.lock().await;
