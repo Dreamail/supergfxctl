@@ -172,7 +172,7 @@ pub fn asus_egpu_enabled() -> Result<bool, GfxError> {
 
 /// Special ASUS only feature. On toggle to `on` it will rescan the PCI bus.
 pub fn asus_egpu_set_enabled(enabled: bool) -> Result<(), GfxError> {
-    if asus_egpu_enabled()? {
+    if asus_egpu_enabled()? == enabled {
         // Do not try to set it again if it has already been changedif asus_egpu_enabled()? {
         return Ok(());
     }

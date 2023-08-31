@@ -162,7 +162,7 @@ pub enum StagedAction {
     /// A none-action marker to specify an intent, in this case not using ASUS or hotplug device removal and only dev-tree unbind/remove
     DevTreeManaged,
     RescanPci,
-    /// Unbind and fully remove the device from a driver (typically )
+    /// Unbind and fully remove the device from a driver using sysfs
     UnbindRemoveGpu,
     /// Unbind only, device is still in PCI tree
     UnbindGpu,
@@ -460,6 +460,7 @@ impl StagedAction {
                     Self::UnbindRemoveGpu,
                     Self::WriteModprobeConf,
                     Self::AsusEgpuDisable,
+                    Self::AsusDgpuEnable, // ensure the dgpu is enabled
                     Self::RescanPci,
                     Self::LoadGpuDrivers,
                     enable_nvidia_powerd,
