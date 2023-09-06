@@ -62,10 +62,7 @@ update:
 
 vendor:
 	mkdir -p .cargo
-	cargo vendor | head -n -1 > .cargo/config
-	echo 'directory = "vendor"' >> .cargo/config
-	mv .cargo/config ./cargo-config
-	rm -rf .cargo
+	cargo vendor-filterer --platform x86_64-unknown-linux-gnu vendor
 	tar pcfJ vendor-$(VERSION).tar.xz vendor
 	rm -rf vendor
 
