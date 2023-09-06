@@ -181,11 +181,11 @@ impl CtrlGraphics {
 
         self.loop_exit.store(false, Ordering::Release);
 
+        let vendor = self.dgpu.lock().await.vendor();
         let user_action_required;
         let actions;
         {
             let mut config = self.config.lock().await;
-            let vendor = self.dgpu.lock().await.vendor();
             let from = config.mode;
 
             if config.always_reboot {
@@ -238,6 +238,22 @@ impl CtrlGraphics {
                     if !failed {
                         config.mode = mode;
                         config.write();
+                    } else {
+                        let from = config.mode;
+                        let actions =
+                            StagedAction::action_list_for_switch(&config, vendor, mode, from);
+                        if let actions::Action::StagedActions(actions) = actions {
+                            for action in actions {
+                                debug!("Doing action: {action:?}");
+                                let mut dgpu = dgpu.lock().await;
+                                if let Err(e) =
+                                    action.perform(mode, &mut dgpu, loop_exit.clone()).await
+                                {
+                                    error!("Action thread errored fallback failed: {e}");
+                                    return;
+                                }
+                            }
+                        }
                     }
                 });
             }

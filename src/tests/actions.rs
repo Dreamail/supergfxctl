@@ -41,6 +41,7 @@ impl StagedAction {
 
             StagedAction::KillAmd => [
                 StagedAction::NotNvidia,
+                StagedAction::DisableNvidiaPowerd,
                 StagedAction::StopDisplayManager,
                 StagedAction::None,
             ]
@@ -189,7 +190,7 @@ impl StagedAction {
             .contains(&next_allowed_action),
 
             StagedAction::DisableNvidiaPowerd => {
-                [StagedAction::KillNvidia].contains(&next_allowed_action)
+                [StagedAction::KillNvidia, StagedAction::KillAmd].contains(&next_allowed_action)
             }
             StagedAction::LoadVfioDrivers => [StagedAction::None].contains(&next_allowed_action),
             StagedAction::UnloadVfioDrivers => [
@@ -539,7 +540,7 @@ mod tests {
                         }
 
                         let actions =
-                            StagedAction::action_list_for_switch(&config, vendor, from, to);
+                            StagedAction::action_list_for_switch(config, vendor, from, to);
                         match actions {
                             Action::UserAction(_) => {} //panic!("Should be a list of actions"),
                             Action::StagedActions(actions) => {
