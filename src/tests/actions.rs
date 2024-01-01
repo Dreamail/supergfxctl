@@ -74,6 +74,7 @@ impl StagedAction {
                 StagedAction::HotplugUnplug,
                 StagedAction::DevTreeManaged,
                 StagedAction::WriteModprobeConf,
+                StagedAction::CheckVulkanIcd
             ]
             .contains(&previous_action),
 
@@ -95,7 +96,11 @@ impl StagedAction {
             | StagedAction::AsusDgpuEnable
             | StagedAction::AsusEgpuDisable
             | StagedAction::AsusEgpuEnable
-            | StagedAction::DevTreeManaged => previous_action == StagedAction::WriteModprobeConf,
+            | StagedAction::DevTreeManaged => [
+                StagedAction::WriteModprobeConf,
+                StagedAction::CheckVulkanIcd
+            ].contains(&previous_action),
+
             StagedAction::AsusMuxIgpu => [
                 StagedAction::None,
                 StagedAction::DisableNvidiaPowerd,
@@ -120,7 +125,7 @@ impl StagedAction {
             ]
             .contains(&previous_action),
 
-            StagedAction::WaitLogout | StagedAction::NotNvidia | StagedAction::None => true,
+            StagedAction::CheckVulkanIcd | StagedAction::WaitLogout | StagedAction::NotNvidia | StagedAction::None => true,
         } {
             Ok(())
         } else {
@@ -137,6 +142,7 @@ impl StagedAction {
             StagedAction::StopDisplayManager => [
                 StagedAction::DisableNvidiaPowerd,
                 StagedAction::WriteModprobeConf,
+                StagedAction::CheckVulkanIcd,
                 StagedAction::UnloadVfioDrivers,
                 StagedAction::KillAmd,
                 StagedAction::KillNvidia,
@@ -152,6 +158,7 @@ impl StagedAction {
                 StagedAction::NotNvidia,
                 StagedAction::DisableNvidiaPowerd,
                 StagedAction::WriteModprobeConf,
+                StagedAction::CheckVulkanIcd,
             ]
             .contains(&next_allowed_action),
 
@@ -166,6 +173,7 @@ impl StagedAction {
                 StagedAction::UnbindGpu,
                 StagedAction::UnbindRemoveGpu,
                 StagedAction::WriteModprobeConf,
+                StagedAction::CheckVulkanIcd,
             ]
             .contains(&next_allowed_action),
 
@@ -196,6 +204,7 @@ impl StagedAction {
             StagedAction::UnloadVfioDrivers => [
                 StagedAction::UnbindRemoveGpu,
                 StagedAction::WriteModprobeConf,
+                StagedAction::CheckVulkanIcd,
             ]
             .contains(&next_allowed_action),
 
@@ -214,7 +223,7 @@ impl StagedAction {
             .contains(&next_allowed_action),
 
             StagedAction::UnbindRemoveGpu => {
-                [StagedAction::WriteModprobeConf].contains(&next_allowed_action)
+                [StagedAction::WriteModprobeConf, StagedAction::CheckVulkanIcd].contains(&next_allowed_action)
             }
 
             StagedAction::UnbindGpu => {
@@ -253,6 +262,7 @@ impl StagedAction {
                 StagedAction::AsusDgpuEnable,
                 StagedAction::LoadVfioDrivers,
                 StagedAction::RescanPci,
+                StagedAction::CheckVulkanIcd,
             ]
             .contains(&next_allowed_action),
 
@@ -267,6 +277,7 @@ impl StagedAction {
                 StagedAction::RescanPci,
                 StagedAction::NoLogind,
                 StagedAction::WriteModprobeConf,
+                StagedAction::CheckVulkanIcd,
                 StagedAction::WaitLogout,
                 StagedAction::NotNvidia,
                 StagedAction::KillNvidia,
@@ -276,6 +287,8 @@ impl StagedAction {
                 StagedAction::UnloadVfioDrivers,
             ]
             .contains(&next_allowed_action),
+
+            StagedAction::CheckVulkanIcd => true,
         } {
             Ok(())
         } else {
