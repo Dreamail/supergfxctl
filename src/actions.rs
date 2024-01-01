@@ -18,7 +18,7 @@ use zbus::zvariant::Type;
 use zbus::Connection;
 
 use crate::{
-    config::{create_modprobe_conf, GfxConfig},
+    config::{create_modprobe_conf, check_vulkan_icd, GfxConfig},
     do_driver_action,
     error::GfxError,
     kill_nvidia_lsof,
@@ -184,6 +184,8 @@ pub enum StagedAction {
     AsusMuxDgpu,
     /// Write a modprobe conf according to mode (e.g, hybrid, vfio)
     WriteModprobeConf,
+    /// Checks for correct Vulkan ICD (remove nvidia_icd.json if not on "nvidia" or "vfio")
+    CheckVulkanIcd,
     /// Placeholder, used to indicate the dgpu is not Nvidia (for example when deciding if KillNvidia should be used)
     NotNvidia,
     None,
@@ -229,6 +231,7 @@ impl StagedAction {
         match mode {
             GfxMode::Hybrid => vec![
                 Self::WriteModprobeConf,
+                Self::CheckVulkanIcd,
                 hotplug_add_type,
                 Self::RescanPci,
                 Self::LoadGpuDrivers,
@@ -240,6 +243,7 @@ impl StagedAction {
                 Self::UnloadGpuDrivers,
                 Self::UnbindRemoveGpu,
                 Self::WriteModprobeConf,
+                Self::CheckVulkanIcd,
                 hotplug_rm_type,
             ],
             GfxMode::Vfio => vec![
@@ -247,16 +251,19 @@ impl StagedAction {
                 kill_gpu_use,
                 Self::UnloadGpuDrivers,
                 Self::WriteModprobeConf,
+                Self::CheckVulkanIcd,
                 Self::LoadVfioDrivers,
             ],
             GfxMode::AsusEgpu => vec![
                 Self::WriteModprobeConf,
+                Self::CheckVulkanIcd,
                 Self::LoadGpuDrivers,
                 enable_nvidia_powerd,
             ],
             GfxMode::AsusMuxDgpu => vec![
                 // TODO: remove iGPU
                 Self::WriteModprobeConf,
+                Self::CheckVulkanIcd,
                 Self::LoadGpuDrivers,
                 enable_nvidia_powerd,
             ],
@@ -318,6 +325,7 @@ impl StagedAction {
                     Self::UnloadGpuDrivers,
                     Self::UnbindRemoveGpu,
                     Self::WriteModprobeConf,
+                    Self::CheckVulkanIcd,
                     hotplug_rm_type,
                     start_display,
                 ]),
@@ -331,6 +339,7 @@ impl StagedAction {
                     Self::UnloadGpuDrivers,
                     Self::UnbindRemoveGpu,
                     Self::WriteModprobeConf,
+                    Self::CheckVulkanIcd,
                     Self::AsusEgpuEnable,
                     Self::RescanPci,
                     Self::LoadGpuDrivers,
@@ -339,6 +348,7 @@ impl StagedAction {
                 ]),
                 GfxMode::AsusMuxDgpu => Action::StagedActions(vec![
                     // Self::WriteModprobeConf,
+                    Self::CheckVulkanIcd, // check this in anycase
                     enable_nvidia_powerd,
                     Self::AsusMuxDgpu,
                 ]),
@@ -351,6 +361,7 @@ impl StagedAction {
                     wait_logout,
                     stop_display,
                     Self::WriteModprobeConf,
+                    Self::CheckVulkanIcd,
                     hotplug_add_type,
                     Self::RescanPci,
                     Self::LoadGpuDrivers,
@@ -359,12 +370,14 @@ impl StagedAction {
                 ]),
                 GfxMode::NvidiaNoModeset => Action::StagedActions(vec![
                     Self::WriteModprobeConf,
+                    Self::CheckVulkanIcd,
                     Self::RescanPci,
                     Self::LoadGpuDrivers,
                     enable_nvidia_powerd,
                 ]),
                 GfxMode::Vfio => Action::StagedActions(vec![
                     Self::WriteModprobeConf,
+                    Self::CheckVulkanIcd,
                     Self::RescanPci, // Make the PCI devices available
                     disable_nvidia_powerd,
                     kill_gpu_use,
@@ -376,6 +389,7 @@ impl StagedAction {
                     wait_logout,
                     stop_display,
                     Self::WriteModprobeConf,
+                    Self::CheckVulkanIcd,
                     Self::AsusEgpuEnable,
                     Self::RescanPci,
                     Self::LoadGpuDrivers,
@@ -384,6 +398,7 @@ impl StagedAction {
                 ]),
                 GfxMode::AsusMuxDgpu => Action::StagedActions(vec![
                     Self::WriteModprobeConf,
+                    Self::CheckVulkanIcd,
                     hotplug_add_type, // must always assume the possibility dgpu_disable was set
                     enable_nvidia_powerd,
                     Self::AsusMuxDgpu,
@@ -400,12 +415,14 @@ impl StagedAction {
                     Self::UnloadGpuDrivers,
                     Self::UnbindRemoveGpu,
                     Self::WriteModprobeConf,
+                    Self::CheckVulkanIcd,
                 ]),
                 GfxMode::Vfio => Action::StagedActions(vec![
                     disable_nvidia_powerd,
                     kill_gpu_use,
                     Self::UnloadGpuDrivers,
                     Self::WriteModprobeConf,
+                    Self::CheckVulkanIcd,
                     Self::LoadVfioDrivers,
                 ]),
                 GfxMode::AsusEgpu => Action::UserAction(UserActionRequired::Nothing),
@@ -423,6 +440,7 @@ impl StagedAction {
                     kill_gpu_use,
                     Self::UnloadVfioDrivers,
                     Self::WriteModprobeConf,
+                    Self::CheckVulkanIcd,
                     Self::RescanPci,
                     Self::LoadGpuDrivers,
                 ]),
@@ -437,6 +455,7 @@ impl StagedAction {
                     Self::UnloadVfioDrivers,
                     Self::UnbindRemoveGpu,
                     Self::WriteModprobeConf,
+                    Self::CheckVulkanIcd,
                     Self::AsusEgpuEnable,
                     Self::RescanPci,
                     Self::LoadGpuDrivers,
@@ -459,6 +478,7 @@ impl StagedAction {
                     Self::UnloadGpuDrivers,
                     Self::UnbindRemoveGpu,
                     Self::WriteModprobeConf,
+                    Self::CheckVulkanIcd,
                     Self::AsusEgpuDisable,
                     Self::AsusDgpuEnable, // ensure the dgpu is enabled
                     Self::RescanPci,
@@ -477,7 +497,8 @@ impl StagedAction {
                     Self::AsusEgpuDisable,
                     Self::UnloadGpuDrivers,
                     Self::UnbindRemoveGpu, // egpu disable also enable dgpu, which can reload the drivers
-                    Self::WriteModprobeConf,
+                    Self::WriteModprobeConf, // TODO: called twice? (why?)
+                    Self::CheckVulkanIcd,
                     hotplug_rm_type, // also need to ensure dgpu is off
                     start_display,
                 ]),
@@ -540,6 +561,7 @@ impl StagedAction {
             StagedAction::AsusMuxIgpu => asus_gpu_mux_set_igpu(true),
             StagedAction::AsusMuxDgpu => asus_gpu_mux_set_igpu(false),
             StagedAction::WriteModprobeConf => create_modprobe_conf(changing_to, device),
+            StagedAction::CheckVulkanIcd => check_vulkan_icd(changing_to),
             StagedAction::DevTreeManaged => Ok(()),
             StagedAction::NoLogind => Ok(()),
             StagedAction::NotNvidia => Ok(()),

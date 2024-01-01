@@ -45,6 +45,8 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const CONFIG_PATH: &str = "/etc/supergfxd.conf";
 /// Destination name to be used in the daemon when setting up DBUS connection
 pub const DBUS_DEST_NAME: &str = "org.supergfxctl.Daemon";
+/// Generic icd-profile (vulkan)
+pub const CONFIG_NVIDIA_VKICD: &str = "/usr/share/vulkan/icd.d/nvidia_icd.json";
 /// Interface path name. Should be common across daemon and client.
 pub const DBUS_IFACE_PATH: &str = "/org/supergfxctl/Gfx";
 
