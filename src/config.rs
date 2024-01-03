@@ -10,7 +10,7 @@ use crate::error::GfxError;
 use crate::pci_device::{DiscreetGpu, GfxMode, HotplugType};
 use crate::{
     MODPROBE_INTEGRATED, MODPROBE_NVIDIA_BASE, MODPROBE_NVIDIA_DRM_MODESET_ON, MODPROBE_PATH,
-    MODPROBE_VFIO,
+    MODPROBE_VFIO, CONFIG_NVIDIA_VKICD
 };
 
 /// Cleaned config for passing over dbus only
@@ -167,6 +167,28 @@ fn create_vfio_conf(devices: &DiscreetGpu) -> Vec<u8> {
     let mut conf = MODPROBE_INTEGRATED.to_vec();
     conf.append(&mut vifo);
     conf
+}
+
+pub(crate) fn check_vulkan_icd(mode: GfxMode) -> Result<(), GfxError> {
+    let inactive_nv_icd: String = CONFIG_NVIDIA_VKICD.to_owned() + "_inactive";
+    info!("check_vulkan_icd: checking for Vulkan ICD profiles...");
+    if mode == GfxMode::Vfio || mode == GfxMode::Integrated {
+        if std::path::Path::new(CONFIG_NVIDIA_VKICD).exists() {
+            info!("check_vulkan_icd: moving {} to {}", CONFIG_NVIDIA_VKICD, inactive_nv_icd.clone());
+            std::fs::rename(
+                CONFIG_NVIDIA_VKICD, 
+                inactive_nv_icd,
+            ).map_err(|err| GfxError::Write(CONFIG_NVIDIA_VKICD.to_owned(), err))?;
+        }
+    } else if std::path::Path::new(&inactive_nv_icd).exists() {
+        info!("check_vulkan_icd: moving {} to {}", inactive_nv_icd.clone(), CONFIG_NVIDIA_VKICD);
+        // nvidia icd must be applied
+        std::fs::rename(
+            inactive_nv_icd.clone(),
+            CONFIG_NVIDIA_VKICD,
+        ).map_err(|err| GfxError::Write(inactive_nv_icd, err))?;
+    }
+    Ok(())
 }
 
 pub(crate) fn create_modprobe_conf(mode: GfxMode, device: &DiscreetGpu) -> Result<(), GfxError> {
