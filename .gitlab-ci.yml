@@ -18,6 +18,7 @@ build:
   only:
     - main
   script:
+    - cargo install cargo-vendor-filterer
     - make && make vendor
   artifacts:
     paths:
