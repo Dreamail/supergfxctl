@@ -90,6 +90,11 @@ blacklist nvidia_uvm
 blacklist nvidia_modeset
 blacklist nvidia
 alias nvidia off
+install nvidia_uvm /bin/false
+install nvdia_drm /bin/false
+install nvidia_modeset /bin/false
+install nvidia /bin/false
+install nouveau /bin/false
 "#;
 
 static MODPROBE_VFIO: &[u8] = br#"options vfio-pci ids="#;
