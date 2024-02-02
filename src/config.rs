@@ -9,8 +9,8 @@ use crate::config_old::{GfxConfig300, GfxConfig405, GfxConfig500};
 use crate::error::GfxError;
 use crate::pci_device::{DiscreetGpu, GfxMode, HotplugType};
 use crate::{
-    MODPROBE_INTEGRATED, MODPROBE_NVIDIA_BASE, MODPROBE_NVIDIA_DRM_MODESET_ON, MODPROBE_PATH,
-    MODPROBE_VFIO, CONFIG_NVIDIA_VKICD
+    CONFIG_NVIDIA_VKICD, MODPROBE_INTEGRATED, MODPROBE_NVIDIA_BASE, MODPROBE_NVIDIA_DRM_MODESET_ON,
+    MODPROBE_PATH, MODPROBE_VFIO,
 };
 
 /// Cleaned config for passing over dbus only
@@ -174,19 +174,23 @@ pub(crate) fn check_vulkan_icd(mode: GfxMode) -> Result<(), GfxError> {
     info!("check_vulkan_icd: checking for Vulkan ICD profiles...");
     if mode == GfxMode::Vfio || mode == GfxMode::Integrated {
         if std::path::Path::new(CONFIG_NVIDIA_VKICD).exists() {
-            info!("check_vulkan_icd: moving {} to {}", CONFIG_NVIDIA_VKICD, inactive_nv_icd.clone());
-            std::fs::rename(
-                CONFIG_NVIDIA_VKICD, 
-                inactive_nv_icd,
-            ).map_err(|err| GfxError::Write(CONFIG_NVIDIA_VKICD.to_owned(), err))?;
+            info!(
+                "check_vulkan_icd: moving {} to {}",
+                CONFIG_NVIDIA_VKICD,
+                inactive_nv_icd.clone()
+            );
+            std::fs::rename(CONFIG_NVIDIA_VKICD, inactive_nv_icd)
+                .map_err(|err| GfxError::Write(CONFIG_NVIDIA_VKICD.to_owned(), err))?;
         }
     } else if std::path::Path::new(&inactive_nv_icd).exists() {
-        info!("check_vulkan_icd: moving {} to {}", inactive_nv_icd.clone(), CONFIG_NVIDIA_VKICD);
-        // nvidia icd must be applied
-        std::fs::rename(
+        info!(
+            "check_vulkan_icd: moving {} to {}",
             inactive_nv_icd.clone(),
-            CONFIG_NVIDIA_VKICD,
-        ).map_err(|err| GfxError::Write(inactive_nv_icd, err))?;
+            CONFIG_NVIDIA_VKICD
+        );
+        // nvidia icd must be applied
+        std::fs::rename(inactive_nv_icd.clone(), CONFIG_NVIDIA_VKICD)
+            .map_err(|err| GfxError::Write(inactive_nv_icd, err))?;
     }
     Ok(())
 }

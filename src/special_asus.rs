@@ -258,18 +258,27 @@ pub async fn asus_boot_safety_check(
         // If dgpu_disable is hard set then users won't have a dgpu at all, try set dgpu enabled
         if !asus_use_dgpu_disable && dgpu_disabled {
             warn!("It appears dgpu_disable is true on boot with HotPlug type not set to Asus, will attempt to re-enable dgpu");
-            asus_dgpu_set_disabled(false)
+            if asus_dgpu_set_disabled(false)
                 .map_err(|e| error!("asus_dgpu_set_disabled: {e:?}"))
-                .ok();
+                .is_ok()
+            {
+                return Ok(GfxMode::Hybrid);
+            } else {
+                return Ok(GfxMode::Integrated);
+            }
         } else if dgpu_disabled && mode != GfxMode::Integrated {
             warn!("asus_boot_safety_check: dgpu_disable is on but the mode isn't Integrated, setting mode to Integrated");
             return Ok(GfxMode::Integrated);
         }
     }
 
-    if asus_egpu_enable_exists() && asus_egpu_enabled()? && mode != GfxMode::AsusEgpu {
-        warn!("asus_boot_safety_check: egpu_enable is on but the mode isn't AsusEgpu, setting mode to AsusEgpu");
-        return Ok(GfxMode::AsusEgpu);
+    if asus_egpu_enable_exists() {
+        if asus_egpu_enabled()? && mode != GfxMode::AsusEgpu {
+            warn!("asus_boot_safety_check: egpu_enable is on but the mode isn't AsusEgpu, setting mode to AsusEgpu");
+            return Ok(GfxMode::AsusEgpu);
+        } else {
+            return Ok(GfxMode::Hybrid);
+        }
     }
 
     Ok(mode)

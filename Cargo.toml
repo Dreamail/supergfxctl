@@ -49,6 +49,7 @@ gumdrop = { version = "^0.8", optional = true }
 
 [profile.release]
 lto = true
+strip = true
 debug = false
 opt-level = 3
 panic = "abort"

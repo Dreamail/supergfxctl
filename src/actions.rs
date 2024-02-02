@@ -18,7 +18,7 @@ use zbus::zvariant::Type;
 use zbus::Connection;
 
 use crate::{
-    config::{create_modprobe_conf, check_vulkan_icd, GfxConfig},
+    config::{check_vulkan_icd, create_modprobe_conf, GfxConfig},
     do_driver_action,
     error::GfxError,
     kill_nvidia_lsof,

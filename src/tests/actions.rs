@@ -74,7 +74,7 @@ impl StagedAction {
                 StagedAction::HotplugUnplug,
                 StagedAction::DevTreeManaged,
                 StagedAction::WriteModprobeConf,
-                StagedAction::CheckVulkanIcd
+                StagedAction::CheckVulkanIcd,
             ]
             .contains(&previous_action),
 
@@ -98,8 +98,9 @@ impl StagedAction {
             | StagedAction::AsusEgpuEnable
             | StagedAction::DevTreeManaged => [
                 StagedAction::WriteModprobeConf,
-                StagedAction::CheckVulkanIcd
-            ].contains(&previous_action),
+                StagedAction::CheckVulkanIcd,
+            ]
+            .contains(&previous_action),
 
             StagedAction::AsusMuxIgpu => [
                 StagedAction::None,
@@ -125,7 +126,10 @@ impl StagedAction {
             ]
             .contains(&previous_action),
 
-            StagedAction::CheckVulkanIcd | StagedAction::WaitLogout | StagedAction::NotNvidia | StagedAction::None => true,
+            StagedAction::CheckVulkanIcd
+            | StagedAction::WaitLogout
+            | StagedAction::NotNvidia
+            | StagedAction::None => true,
         } {
             Ok(())
         } else {
@@ -222,9 +226,11 @@ impl StagedAction {
             ]
             .contains(&next_allowed_action),
 
-            StagedAction::UnbindRemoveGpu => {
-                [StagedAction::WriteModprobeConf, StagedAction::CheckVulkanIcd].contains(&next_allowed_action)
-            }
+            StagedAction::UnbindRemoveGpu => [
+                StagedAction::WriteModprobeConf,
+                StagedAction::CheckVulkanIcd,
+            ]
+            .contains(&next_allowed_action),
 
             StagedAction::UnbindGpu => {
                 [StagedAction::LoadVfioDrivers].contains(&next_allowed_action)
@@ -474,7 +480,7 @@ mod tests {
                         }
 
                         let actions =
-                            StagedAction::action_list_for_switch(&config, vendor, from, to);
+                            StagedAction::action_list_for_switch(config, vendor, from, to);
                         match actions {
                             Action::UserAction(_) => {} //panic!("Should be a list of actions"),
                             Action::StagedActions(actions) => {

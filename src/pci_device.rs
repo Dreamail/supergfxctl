@@ -306,7 +306,11 @@ impl Device {
                             // Assumes that the enumeration is always in order, so things on the same bus after the dGPU
                             // are attached. Look at parent system name to match
                             let dgpu = if let Some(boot_vga) = device.attribute_value("boot_vga") {
-                                debug!("Found non-boot_vga {id} at {:?}", device.sysname());
+                                if boot_vga == "0" {
+                                    debug!("Found non-boot_vga {id} at {:?}", device.sysname());
+                                } else {
+                                    debug!("Found boot_vga {id} at {:?}", device.sysname());
+                                }
                                 class.starts_with("30") && boot_vga == "0"
                             } else if let Some(label) =
                                 device.property_value("ID_MODEL_FROM_DATABASE")
@@ -330,7 +334,16 @@ impl Device {
                                     match find_slot_power(&sysname) {
                                         Ok(slot) => hotplug_path = Some(slot),
                                         Err(e) => {
-                                            debug!("Laptop does not have a hotplug dgpu: {e:?}")
+                                            if let Ok(c) = asus_gpu_mux_mode() {
+                                                debug!(
+                                                    "Laptop is in dGPU MUX mode? {}",
+                                                    c == AsusGpuMuxMode::Discreet
+                                                );
+                                            } else {
+                                                debug!(
+                                                    "Laptop does not have a hotplug dgpu: {e:?}"
+                                                );
+                                            }
                                         }
                                     }
                                 } else {
