@@ -1,4 +1,4 @@
-use ::zbus::dbus_interface;
+use ::zbus::interface;
 use log::{error, info, warn};
 use zbus::zvariant::ObjectPath;
 use zbus::SignalContext;
@@ -13,7 +13,7 @@ use crate::{
 
 use super::controller::CtrlGraphics;
 
-#[dbus_interface(name = "org.supergfxctl.Daemon")]
+#[interface(name = "org.supergfxctl.Daemon")]
 impl CtrlGraphics {
     /// Get supergfxd version
     fn version(&self) -> zbus::fdo::Result<String> {
@@ -220,7 +220,7 @@ impl CtrlGraphics {
     ///     AsusMuxDiscreet,
     ///     Unknown,
     /// }
-    #[dbus_interface(signal)]
+    #[zbus(signal)]
     pub async fn notify_gfx_status(
         signal_ctxt: &SignalContext<'_>,
         status: &GfxPower,
@@ -228,11 +228,11 @@ impl CtrlGraphics {
     }
 
     /// Recieve a notification if the graphics mode changes and to which mode
-    #[dbus_interface(signal)]
+    #[zbus(signal)]
     async fn notify_gfx(signal_ctxt: &SignalContext<'_>, vendor: &GfxMode) -> zbus::Result<()> {}
 
     /// Recieve a notification on required action if mode changes
-    #[dbus_interface(signal)]
+    #[zbus(signal)]
     async fn notify_action(
         signal_ctxt: &SignalContext<'_>,
         action: &UserActionRequired,

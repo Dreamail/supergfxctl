@@ -7,7 +7,7 @@ use supergfxctl::{
 };
 
 use gumdrop::Options;
-use zbus::blocking::Connection;
+use zbus::{blocking::Connection, proxy::CacheProperties};
 
 #[derive(Default, Clone, Copy, Options)]
 struct CliStart {
@@ -76,8 +76,9 @@ fn do_gfx(command: CliStart) -> Result<(), GfxError> {
         println!("{}", command.self_usage());
     }
 
-    let conn = Connection::system()?;
-    let proxy = DaemonProxyBlocking::new(&conn)?;
+    let proxy = DaemonProxyBlocking::builder(&Connection::system()?)
+        .cache_properties(CacheProperties::No)
+        .build()?;
 
     if let Some(mode) = command.mode {
         let res = proxy.set_mode(&mode)?;

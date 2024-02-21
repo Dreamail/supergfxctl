@@ -21,14 +21,14 @@
 //!
 //! …consequently `zbus-xmlgen` did not generate code for the above interfaces.
 
-use zbus::dbus_proxy;
+use zbus::proxy;
 
 use crate::{
     actions::UserActionRequired,
     pci_device::{GfxMode, GfxPower},
 };
 
-#[dbus_proxy(
+#[proxy(
     interface = "org.supergfxctl.Daemon",
     default_path = "/org/supergfxctl/Gfx"
 )]
@@ -81,14 +81,14 @@ trait Daemon {
     fn vendor(&self) -> zbus::Result<String>;
 
     /// Be notified when the dgpu status changes
-    #[dbus_proxy(signal)]
+    #[zbus(signal)]
     fn notify_gfx_status(&self, status: GfxPower) -> zbus::Result<()>;
 
     /// NotifyAction signal
-    #[dbus_proxy(signal)]
+    #[zbus(signal)]
     fn notify_action(&self, action: UserActionRequired) -> zbus::Result<()>;
 
     /// NotifyGfx signal
-    #[dbus_proxy(signal)]
+    #[zbus(signal)]
     fn notify_gfx(&self, mode: GfxMode) -> zbus::Result<()>;
 }
