@@ -30,6 +30,7 @@ use crate::{
 
 #[proxy(
     interface = "org.supergfxctl.Daemon",
+    default_service = "org.supergfxctl.Daemon",
     default_path = "/org/supergfxctl/Gfx"
 )]
 trait Daemon {
