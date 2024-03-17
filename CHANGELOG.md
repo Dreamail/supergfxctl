@@ -5,11 +5,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [5.2.1] - 2024-03-17
+
 ### Changed
+
 - Better sanity check for booting without egpu after it was previously set
-- Better way of preventing the Nvidia driver from loading (thanks SimpliFly)
 
 ### Added
+
 - Vulkan ICD profile switching (thanks Armas Spann)
 
 ## [5.1.2] - 2023-09-07
