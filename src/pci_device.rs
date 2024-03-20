@@ -69,12 +69,14 @@ impl FromStr for GfxPower {
     type Err = GfxError;
 
     fn from_str(s: &str) -> Result<Self, GfxError> {
-        match s.to_lowercase().trim() {
-            "active" => Ok(GfxPower::Active),
-            "suspended" => Ok(GfxPower::Suspended),
-            "off" => Ok(GfxPower::Off),
-            _ => Ok(GfxPower::Unknown),
-        }
+        Ok(match s.to_lowercase().trim() {
+            "active" => GfxPower::Active,
+            "suspended" => GfxPower::Suspended,
+            "off" => GfxPower::Off,
+            "dgpu_disabled" => GfxPower::AsusDisabled,
+            "asus_mux_discreet" => GfxPower::AsusMuxDiscreet,
+            _ => GfxPower::Unknown,
+        })
     }
 }
 

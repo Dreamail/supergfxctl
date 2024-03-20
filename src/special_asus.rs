@@ -276,6 +276,12 @@ pub async fn asus_boot_safety_check(
         if asus_egpu_enabled()? && mode != GfxMode::AsusEgpu {
             warn!("asus_boot_safety_check: egpu_enable is on but the mode isn't AsusEgpu, setting mode to AsusEgpu");
             return Ok(GfxMode::AsusEgpu);
+        } else if asus_use_dgpu_disable // using asus hotplug?
+            && asus_dgpu_disable_exists()
+            && asus_dgpu_disabled()? // and dgpu is disabled?
+            && mode != GfxMode::Integrated // really should be in this mode
+        {
+            return Ok(GfxMode::Integrated);
         } else {
             return Ok(GfxMode::Hybrid);
         }
