@@ -561,7 +561,12 @@ impl StagedAction {
             StagedAction::AsusMuxIgpu => asus_gpu_mux_set_igpu(true),
             StagedAction::AsusMuxDgpu => asus_gpu_mux_set_igpu(false),
             StagedAction::WriteModprobeConf => create_modprobe_conf(changing_to, device),
-            StagedAction::CheckVulkanIcd => check_vulkan_icd(changing_to),
+            StagedAction::CheckVulkanIcd => {
+                check_vulkan_icd(changing_to)
+                    .map_err(|e| warn!("Vulkan ICD failed: {e:?}"))
+                    .ok();
+                Ok(())
+            }
             StagedAction::DevTreeManaged => Ok(()),
             StagedAction::NoLogind => Ok(()),
             StagedAction::NotNvidia => Ok(()),
