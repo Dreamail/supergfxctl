@@ -6,9 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.2.3] - 2024-05-06
+
 ### Changed
 - Minor adjustsments to asus egpu safety logic
 - Add missing mode/string conversions
+- Bump deps
 
 ## [5.2.1] - 2024-03-17
 
