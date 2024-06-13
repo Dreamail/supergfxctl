@@ -16,6 +16,8 @@ const ASUS_DGPU_DISABLE_PATH: &str = "/sys/devices/platform/asus-nb-wmi/dgpu_dis
 const ASUS_EGPU_ENABLE_PATH: &str = "/sys/devices/platform/asus-nb-wmi/egpu_enable";
 const ASUS_GPU_MUX_PATH: &str = "/sys/devices/platform/asus-nb-wmi/gpu_mux_mode";
 
+const ASUS_EGPU_ALT_ENABLE_PATH: &str = "/sys/bus/platform/devices/asus-nb-wmi/egpu_enable";
+
 pub const ASUS_MODULES_LOAD_PATH: &str = "/etc/modules-load.d/asus.conf";
 pub const ASUS_MODULES_LOAD: &[u8] = br#"
 asus-wmi
@@ -149,19 +151,30 @@ pub fn asus_dgpu_set_disabled(disabled: bool) -> Result<(), GfxError> {
     Ok(())
 }
 
+pub fn asus_egpu_enable_path() -> &'static str {
+    if Path::new(ASUS_EGPU_ALT_ENABLE_PATH).exists() {
+        return ASUS_EGPU_ALT_ENABLE_PATH;
+    }
+
+    return ASUS_EGPU_ENABLE_PATH;
+}
+
 pub fn asus_egpu_enable_exists() -> bool {
     if Path::new(ASUS_EGPU_ENABLE_PATH).exists() {
+        return true;
+    }
+    if Path::new(ASUS_EGPU_ALT_ENABLE_PATH).exists() {
         return true;
     }
     false
 }
 
 pub fn asus_egpu_enabled() -> Result<bool, GfxError> {
-    let path = Path::new(ASUS_EGPU_ENABLE_PATH);
+    let path = Path::new(asus_egpu_enable_path());
     let mut file = OpenOptions::new()
         .read(true)
         .open(path)
-        .map_err(|err| GfxError::Path(ASUS_EGPU_ENABLE_PATH.to_string(), err))?;
+        .map_err(|err| GfxError::Path(asus_egpu_enable_path().to_string(), err))?;
     let mut buf = String::new();
     file.read_to_string(&mut buf)?;
     if buf.contains('1') {
@@ -181,7 +194,7 @@ pub fn asus_egpu_set_enabled(enabled: bool) -> Result<(), GfxError> {
     // enable, and the deivces require at least a touch of time to finish powering up
     std::thread::sleep(Duration::from_millis(500));
     // Need to set, scan, set to ensure mode is correctly set
-    asus_gpu_toggle(enabled, ASUS_EGPU_ENABLE_PATH)?;
+    asus_gpu_toggle(enabled, asus_egpu_enable_path())?;
     if enabled {
         // Purposefully blocking here. Need to force enough time for things to wake
         std::thread::sleep(Duration::from_millis(50));
