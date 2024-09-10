@@ -313,7 +313,31 @@ impl Device {
                                 } else {
                                     debug!("Found boot_vga {id} at {:?}", device.sysname());
                                 }
-                                class.starts_with("30") && boot_vga == "0"
+                                // Sometimes Nvidia dGPU gets boot_vga == "1" in Hybrid mode
+                                // Assume all Nvidia GPUs are dGPU
+                                class.starts_with("30") && (boot_vga == "0" || id.starts_with("10DE"))
+                            } else if id.starts_with("1002") {
+                                debug!("Found AMD GPU {id} without boot_vga attribute at {:?}", device.sysname());
+
+                                // Sometimes AMD iGPU doesn't get a boot_vga attribute even in Hybrid mode
+                                // Fallback to the following method for telling iGPU apart from dGPU:
+                                // https://github.com/fastfetch-cli/fastfetch/blob/fed2c87f67de43e3672d1a4a7767d59e7ff22ba2/src/detection/gpu/gpu_linux.c#L148
+                                let mut dev_path = PathBuf::from(device.syspath());
+                                dev_path.push("hwmon");
+                                
+                                let hwmon_n_opt = dev_path.read_dir().map_err(
+                                    |e| GfxError::from_io(e, dev_path)
+                                )?.next();
+                                
+                                match hwmon_n_opt {
+                                    Some(hwmon_n_result) => {
+                                        let mut hwmon_n = hwmon_n_result?.path();
+                                        hwmon_n.push("in1_input");
+
+                                        !hwmon_n.exists()
+                                    }
+                                    None => false
+                                }
                             } else if let Some(label) =
                                 device.property_value("ID_MODEL_FROM_DATABASE")
                             {
