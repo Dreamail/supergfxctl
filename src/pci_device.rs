@@ -327,12 +327,13 @@ impl Device {
                                 let hwmon_n_opt = match dev_path.read_dir() {
                                     Ok(mut entries) => {
                                         entries.next()
-                                    } Err(e) => {
-                                        debug!("Error reading hwmon directory: {}", e.to_string());
+                                    } Err(_e) => {
+                                        // debug!("Error reading hwmon directory: {}", e.to_string());
                                         None // Continue with the assumption it's not a dGPU
                                     }
                                 };
-                                match hwmon_n_opt {
+
+                                match hwmon_n_opt { 
                                     Some(hwmon_n_result) => {
                                         let mut hwmon_n = hwmon_n_result?.path();
                                         hwmon_n.push("in1_input");
