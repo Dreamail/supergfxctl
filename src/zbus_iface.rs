@@ -1,7 +1,6 @@
 use ::zbus::interface;
 use log::{error, info, warn};
-use zbus::zvariant::ObjectPath;
-use zbus::SignalContext;
+use zbus::{object_server::SignalEmitter, zvariant::ObjectPath};
 
 use crate::{
     actions::UserActionRequired,
@@ -131,7 +130,7 @@ impl CtrlGraphics {
     /// ```
     async fn set_mode(
         &mut self,
-        #[zbus(signal_context)] ctxt: SignalContext<'_>,
+        #[zbus(signal_context)] ctxt: SignalEmitter<'_>,
         mode: GfxMode,
     ) -> zbus::fdo::Result<UserActionRequired> {
         info!("Switching gfx mode to {mode}");
@@ -185,7 +184,7 @@ impl CtrlGraphics {
     /// logout_timeout_s: u64,
     async fn set_config(
         &mut self,
-        #[zbus(signal_context)] ctxt: SignalContext<'_>,
+        #[zbus(signal_context)] ctxt: SignalEmitter<'_>,
         config: GfxConfigDbus,
     ) -> zbus::fdo::Result<()> {
         let do_mode_change;
@@ -222,19 +221,19 @@ impl CtrlGraphics {
     /// }
     #[zbus(signal)]
     pub async fn notify_gfx_status(
-        signal_ctxt: &SignalContext<'_>,
+        signal_ctxt: &SignalEmitter<'_>,
         status: &GfxPower,
     ) -> zbus::Result<()> {
     }
 
     /// Recieve a notification if the graphics mode changes and to which mode
     #[zbus(signal)]
-    async fn notify_gfx(signal_ctxt: &SignalContext<'_>, vendor: &GfxMode) -> zbus::Result<()> {}
+    async fn notify_gfx(signal_ctxt: &SignalEmitter<'_>, vendor: &GfxMode) -> zbus::Result<()> {}
 
     /// Recieve a notification on required action if mode changes
     #[zbus(signal)]
     async fn notify_action(
-        signal_ctxt: &SignalContext<'_>,
+        signal_ctxt: &SignalEmitter<'_>,
         action: &UserActionRequired,
     ) -> zbus::Result<()> {
     }

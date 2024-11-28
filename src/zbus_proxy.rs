@@ -33,7 +33,7 @@ use crate::{
     default_service = "org.supergfxctl.Daemon",
     default_path = "/org/supergfxctl/Gfx"
 )]
-trait Daemon {
+pub trait Daemon {
     /// Version method
     fn version(&self) -> zbus::Result<String>;
 

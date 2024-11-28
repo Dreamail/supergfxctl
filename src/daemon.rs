@@ -12,11 +12,11 @@ use supergfxctl::{
     CONFIG_PATH, DBUS_DEST_NAME, DBUS_IFACE_PATH, VERSION,
 };
 use tokio::time::sleep;
-use zbus::zvariant::ObjectPath;
 use zbus::{
     export::futures_util::{lock::Mutex, StreamExt},
-    Connection, SignalContext,
+    Connection,
 };
+use zbus::{object_server::SignalEmitter, zvariant::ObjectPath};
 
 #[tokio::main]
 async fn main() -> Result<(), GfxError> {
@@ -67,7 +67,7 @@ async fn start_daemon() -> Result<(), GfxError> {
                 .await
                 .unwrap_or_else(|err| error!("Gfx controller: {}", err));
 
-            let signal_context = SignalContext::new(&connection, DBUS_IFACE_PATH)?;
+            let signal_context = SignalEmitter::new(&connection, DBUS_IFACE_PATH)?;
             start_notify_status(ctrl.dgpu_arc_clone(), signal_context)
                 .await
                 .ok();
@@ -97,7 +97,7 @@ async fn start_daemon() -> Result<(), GfxError> {
 
 async fn start_notify_status(
     dgpu: Arc<Mutex<DiscreetGpu>>,
-    signal_ctxt: SignalContext<'static>,
+    signal_ctxt: SignalEmitter<'static>,
 ) -> Result<(), GfxError> {
     tokio::spawn(async move {
         let mut last_status = GfxPower::Unknown;
