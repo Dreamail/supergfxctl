@@ -313,3 +313,51 @@ pub fn find_slot_power(address: &str) -> Result<PathBuf, GfxError> {
     }
     Err(GfxError::DgpuNotFound)
 }
+
+pub fn find_connected_displays(gpu_path: &Path) -> Result<Vec<String>, GfxError> {
+    let drm_path = gpu_path.join("drm");
+
+    // Find card directory (card0 or card1)
+    let card_dir = drm_path
+        .read_dir()?
+        .find_map(|entry| {
+            let entry = entry.ok()?;
+            let name = entry.file_name().into_string().ok()?;
+            if name.starts_with("card") {
+                Some(entry.path())
+            } else {
+                None
+            }
+        })
+        .ok_or(GfxError::DgpuNotFound)?;
+
+    // Collect display names
+    let displays: Vec<String> = card_dir
+        .read_dir()?
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
+            let name = entry.file_name().into_string().ok()?;
+
+            if name.contains('-') {
+                // Check connection status
+                let status_path = entry.path().join("status");
+                dbg!(&status_path);
+                let status = std::fs::read_to_string(status_path).ok()?;
+
+                if status.trim() == "connected" {
+                    name.split_once('-').map(|(_, display)| display.to_string())
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    if displays.is_empty() {
+        Err(GfxError::DgpuNotFound)
+    } else {
+        Ok(displays)
+    }
+}

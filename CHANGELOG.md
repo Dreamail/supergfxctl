@@ -6,10 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [5.243] - 2024-10-03
+## [5.2.7]
 
 ### Changed
 - Bump deps
+- Fix dGPU selection
+  - Removes the old unreliable boot_vga method
+  - Adds new method via checking the GPU port connection names
 
 ## [5.2.3] - 2024-05-06
 

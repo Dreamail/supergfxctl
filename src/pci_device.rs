@@ -11,7 +11,9 @@ use crate::special_asus::{
     asus_dgpu_disable_exists, asus_dgpu_disabled, asus_gpu_mux_exists, asus_gpu_mux_mode,
     AsusGpuMuxMode,
 };
-use crate::{do_driver_action, find_slot_power, DriverAction, NVIDIA_DRIVERS};
+use crate::{
+    do_driver_action, find_connected_displays, find_slot_power, DriverAction, NVIDIA_DRIVERS,
+};
 
 use serde_derive::{Deserialize, Serialize};
 use zbus::zvariant::Type;
@@ -304,20 +306,33 @@ impl Device {
                     // Match only      Nvidia or AMD
                     if id.starts_with("10DE") || id.starts_with("1002") {
                         if let Some(vendor) = id.split(':').next() {
+                            let mut dgpu = false;
                             // DGPU CHECK
-                            // Assumes that the enumeration is always in order, so things on the same bus after the dGPU
-                            // are attached. Look at parent system name to match
-                            let dgpu = if let Some(boot_vga) = device.attribute_value("boot_vga") {
-                                if boot_vga == "0" {
-                                    debug!("Found non-boot_vga {id} at {:?}", device.sysname());
-                                } else {
-                                    debug!("Found boot_vga {id} at {:?}", device.sysname());
-                                }
-                                // Sometimes Nvidia dGPU gets boot_vga == "1" in Hybrid mode
-                                // Assume all Nvidia GPUs are dGPU
-                                class.starts_with("30") && (boot_vga == "0" || id.starts_with("10DE"))
-                            } else if id.starts_with("1002") {
-                                debug!("Found AMD Device {id} without boot_vga attribute at {:?}", device.sysname());
+                            // Go through a hierarchy of devices to find the dGPU
+                            // The returned displays array may be empty if no displays are connected
+                            // to the GPU at all. Since eDP-1 is *always* connected this means we
+                            // can assume that the checked device is not iGPU
+                            let displays =
+                                find_connected_displays(device.syspath()).unwrap_or_default();
+                            // eDP-1 is the internal panel connection which is so far always on iGPU
+                            if !displays.contains(&"eDP-1".to_string()) {
+                                info!(
+                                    "Matched dGPU {id} at {:?} by checking display connections",
+                                    device.sysname()
+                                );
+                                dgpu = class.starts_with("30")
+                                    && (id.starts_with("10DE") || id.starts_with("1002"));
+                            } else {
+                                info!(
+                                    "Device {id} at {:?} appears to be the iGPU",
+                                    device.sysname()
+                                );
+                            }
+                            if !dgpu && id.starts_with("1002") {
+                                debug!(
+                                    "Found dGPU Device {id} without boot_vga attribute at {:?}",
+                                    device.sysname()
+                                );
                                 // Sometimes AMD iGPU doesn't get a boot_vga attribute even in Hybrid mode
                                 // Fallback to the following method for telling iGPU apart from dGPU:
                                 // https://github.com/fastfetch-cli/fastfetch/blob/fed2c87f67de43e3672d1a4a7767d59e7ff22ba2/src/detection/gpu/gpu_linux.c#L148
@@ -325,37 +340,34 @@ impl Device {
                                 dev_path.push("hwmon");
 
                                 let hwmon_n_opt = match dev_path.read_dir() {
-                                    Ok(mut entries) => {
-                                        entries.next()
-                                    } Err(_e) => {
-                                        // debug!("Error reading hwmon directory: {}", e.to_string());
+                                    Ok(mut entries) => entries.next(),
+                                    Err(e) => {
+                                        debug!("Error reading hwmon directory: {}", e.to_string());
                                         None // Continue with the assumption it's not a dGPU
                                     }
                                 };
 
-                                match hwmon_n_opt { 
-                                    Some(hwmon_n_result) => {
-                                        let mut hwmon_n = hwmon_n_result?.path();
-                                        hwmon_n.push("in1_input");
-
-                                        !hwmon_n.exists()
-                                    }
-                                    None => false
+                                if let Some(hwmon_n_result) = hwmon_n_opt {
+                                    let mut hwmon_n = hwmon_n_result?.path();
+                                    hwmon_n.push("in1_input");
+                                    dgpu = !hwmon_n.exists();
                                 }
-                            } else if let Some(label) =
-                                device.property_value("ID_MODEL_FROM_DATABASE")
-                            {
-                                debug!(
+                            }
+                            if !dgpu {
+                                if let Some(label) = device.property_value("ID_MODEL_FROM_DATABASE")
+                                {
+                                    debug!(
                                     "Found ID_MODEL_FROM_DATABASE property {id} at {:?} : {label:?}",
                                     device.sysname()
                                 );
-                                lscpi_dgpu_check(&label.to_string_lossy())
-                            } else {
-                                // last resort - this is typically only required if ID_MODEL_FROM_DATABASE is
-                                // missing due to dgpu_disable being on at boot
-                                debug!("Didn't find dGPU with standard methods, using last resort for id:{id} at {:?}", device.sysname());
-                                lscpi_dgpu_check(&lscpi(&id)?)
-                            };
+                                    lscpi_dgpu_check(&label.to_string_lossy())
+                                } else {
+                                    // last resort - this is typically only required if ID_MODEL_FROM_DATABASE is
+                                    // missing due to dgpu_disable being on at boot
+                                    debug!("Didn't find dGPU with standard methods, using last resort for id:{id} at {:?}", device.sysname());
+                                    lscpi_dgpu_check(&lscpi(&id)?)
+                                };
+                            }
 
                             if dgpu || !parent.is_empty() && sysname.contains(&parent) {
                                 let mut hotplug_path = None;
@@ -550,13 +562,7 @@ impl DiscreetGpu {
         } else {
             warn!("DiscreetGpu::new: no devices??");
             let mut vendor = GfxVendor::Unknown;
-            if asus_dgpu_disable_exists()
-                && if let Ok(c) = asus_dgpu_disabled() {
-                    c
-                } else {
-                    false
-                }
-            {
+            if asus_dgpu_disable_exists() && asus_dgpu_disabled().unwrap_or(false) {
                 warn!("ASUS dGPU appears to be disabled");
                 vendor = GfxVendor::AsusDgpuDisabled;
             } else if asus_gpu_mux_exists()

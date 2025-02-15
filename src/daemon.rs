@@ -3,7 +3,6 @@ use std::{env, sync::Arc, time::Duration};
 use futures_util::{lock::Mutex, StreamExt};
 use log::{error, info, trace};
 use logind_zbus::manager::ManagerProxy;
-use std::io::Write;
 use supergfxctl::{
     config::GfxConfig,
     controller::CtrlGraphics,
@@ -22,7 +21,8 @@ async fn main() -> Result<(), GfxError> {
     logger
         .parse_default_env()
         .target(env_logger::Target::Stdout)
-        .format(|buf, record| writeln!(buf, "{}: {}", record.level(), record.args()))
+        .format_timestamp(None)
+        .filter_level(log::LevelFilter::Debug)
         .init();
 
     let is_service = match env::var_os("IS_SERVICE") {

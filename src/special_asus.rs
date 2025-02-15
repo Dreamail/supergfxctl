@@ -291,7 +291,8 @@ pub async fn asus_boot_safety_check(
             return Ok(GfxMode::AsusEgpu);
         } else if asus_use_dgpu_disable // using asus hotplug?
             && asus_dgpu_disable_exists()
-            && asus_dgpu_disabled()? // and dgpu is disabled?
+            && asus_dgpu_disabled()?
+        // and dgpu is disabled?
         {
             return Ok(GfxMode::Integrated); // really should be in this mode if dgpu disabled
         }
