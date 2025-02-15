@@ -1,9 +1,9 @@
+use futures_util::lock::Mutex;
 use log::{debug, info, warn};
 use std::{
     sync::atomic::{AtomicBool, Ordering},
     sync::Arc,
 };
-use zbus::export::futures_util::lock::Mutex;
 
 use crate::{
     actions::{StagedAction, UserActionRequired},

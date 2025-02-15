@@ -1,5 +1,6 @@
 use std::{env, sync::Arc, time::Duration};
 
+use futures_util::{lock::Mutex, StreamExt};
 use log::{error, info, trace};
 use logind_zbus::manager::ManagerProxy;
 use std::io::Write;
@@ -12,10 +13,7 @@ use supergfxctl::{
     CONFIG_PATH, DBUS_DEST_NAME, DBUS_IFACE_PATH, VERSION,
 };
 use tokio::time::sleep;
-use zbus::{
-    export::futures_util::{lock::Mutex, StreamExt},
-    Connection,
-};
+use zbus::Connection;
 use zbus::{object_server::SignalEmitter, zvariant::ObjectPath};
 
 #[tokio::main]
