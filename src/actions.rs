@@ -378,6 +378,7 @@ impl StagedAction {
                 GfxMode::Vfio => Action::StagedActions(vec![
                     Self::WriteModprobeConf,
                     Self::CheckVulkanIcd,
+                    hotplug_add_type,
                     Self::RescanPci, // Make the PCI devices available
                     disable_nvidia_powerd,
                     kill_gpu_use,
