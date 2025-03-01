@@ -341,7 +341,6 @@ pub fn find_connected_displays(gpu_path: &Path) -> Result<Vec<String>, GfxError>
             if name.contains('-') {
                 // Check connection status
                 let status_path = entry.path().join("status");
-                dbg!(&status_path);
                 let status = std::fs::read_to_string(status_path).ok()?;
 
                 if status.trim() == "connected" {
