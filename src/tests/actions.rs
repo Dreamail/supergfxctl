@@ -16,6 +16,7 @@ impl StagedAction {
                 StagedAction::AsusDgpuDisable,
                 StagedAction::AsusEgpuDisable,
                 StagedAction::DevTreeManaged,
+                StagedAction::EnableNvidiaPersistenced,
                 StagedAction::EnableNvidiaPowerd,
                 StagedAction::NotNvidia,
             ]
@@ -34,6 +35,7 @@ impl StagedAction {
 
             StagedAction::KillNvidia => [
                 StagedAction::StopDisplayManager,
+                StagedAction::DisableNvidiaPersistenced,
                 StagedAction::DisableNvidiaPowerd,
                 StagedAction::None,
             ]
@@ -41,6 +43,7 @@ impl StagedAction {
 
             StagedAction::KillAmd => [
                 StagedAction::NotNvidia,
+                StagedAction::DisableNvidiaPersistenced,
                 StagedAction::DisableNvidiaPowerd,
                 StagedAction::StopDisplayManager,
                 StagedAction::None,
@@ -55,6 +58,21 @@ impl StagedAction {
             .contains(&previous_action),
 
             StagedAction::DisableNvidiaPowerd => [
+                StagedAction::StopDisplayManager,
+                StagedAction::NoLogind,
+                StagedAction::RescanPci,
+                StagedAction::None,
+            ]
+            .contains(&previous_action),
+
+            StagedAction::EnableNvidiaPersistenced => [
+                StagedAction::DevTreeManaged,
+                StagedAction::LoadGpuDrivers,
+                StagedAction::None,
+            ]
+            .contains(&previous_action),
+
+            StagedAction::DisableNvidiaPersistenced => [
                 StagedAction::StopDisplayManager,
                 StagedAction::NoLogind,
                 StagedAction::RescanPci,
@@ -104,12 +122,14 @@ impl StagedAction {
 
             StagedAction::AsusMuxIgpu => [
                 StagedAction::None,
+                StagedAction::DisableNvidiaPersistenced,
                 StagedAction::DisableNvidiaPowerd,
                 StagedAction::NotNvidia,
             ]
             .contains(&previous_action),
 
             StagedAction::AsusMuxDgpu => [
+                StagedAction::EnableNvidiaPersistenced,
                 StagedAction::EnableNvidiaPowerd,
                 StagedAction::NotNvidia,
                 StagedAction::None,
@@ -144,6 +164,7 @@ impl StagedAction {
         if match self {
             StagedAction::WaitLogout => StagedAction::StopDisplayManager == next_allowed_action,
             StagedAction::StopDisplayManager => [
+                StagedAction::EnableNvidiaPersistenced,
                 StagedAction::DisableNvidiaPowerd,
                 StagedAction::WriteModprobeConf,
                 StagedAction::CheckVulkanIcd,
@@ -160,6 +181,7 @@ impl StagedAction {
             StagedAction::NoLogind => [
                 StagedAction::NoLogind,
                 StagedAction::NotNvidia,
+                StagedAction::EnableNvidiaPersistenced,
                 StagedAction::DisableNvidiaPowerd,
                 StagedAction::WriteModprobeConf,
                 StagedAction::CheckVulkanIcd,
@@ -167,6 +189,7 @@ impl StagedAction {
             .contains(&next_allowed_action),
 
             StagedAction::LoadGpuDrivers => [
+                StagedAction::EnableNvidiaPersistenced,
                 StagedAction::EnableNvidiaPowerd,
                 StagedAction::NotNvidia,
                 StagedAction::None,
@@ -204,6 +227,18 @@ impl StagedAction {
             StagedAction::DisableNvidiaPowerd => {
                 [StagedAction::KillNvidia, StagedAction::KillAmd].contains(&next_allowed_action)
             }
+
+            StagedAction::EnableNvidiaPersistenced => [
+                StagedAction::StartDisplayManager,
+                StagedAction::AsusMuxDgpu,
+                StagedAction::NoLogind,
+                StagedAction::None,
+            ]
+            .contains(&next_allowed_action),
+
+            StagedAction::DisableNvidiaPersistenced => {
+                [StagedAction::KillNvidia, StagedAction::KillAmd].contains(&next_allowed_action)
+            }
             StagedAction::LoadVfioDrivers => [StagedAction::None].contains(&next_allowed_action),
             StagedAction::UnloadVfioDrivers => [
                 StagedAction::UnbindRemoveGpu,
@@ -221,6 +256,7 @@ impl StagedAction {
 
             StagedAction::RescanPci => [
                 StagedAction::LoadGpuDrivers,
+                StagedAction::DisableNvidiaPersistenced,
                 StagedAction::DisableNvidiaPowerd,
                 StagedAction::NotNvidia,
             ]
@@ -288,6 +324,8 @@ impl StagedAction {
                 StagedAction::NotNvidia,
                 StagedAction::KillNvidia,
                 StagedAction::KillAmd,
+                StagedAction::EnableNvidiaPersistenced,
+                StagedAction::DisableNvidiaPersistenced,
                 StagedAction::EnableNvidiaPowerd,
                 StagedAction::DisableNvidiaPowerd,
                 StagedAction::UnloadVfioDrivers,

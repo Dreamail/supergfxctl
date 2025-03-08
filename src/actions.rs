@@ -27,7 +27,7 @@ use crate::{
     systemd::{
         do_systemd_unit_action, wait_systemd_unit_state, SystemdUnitAction, SystemdUnitState,
     },
-    toggle_nvidia_powerd, DriverAction, DISPLAY_MANAGER, VFIO_DRIVERS,
+    toggle_nvidia_persistenced, toggle_nvidia_powerd, DriverAction, DISPLAY_MANAGER, VFIO_DRIVERS,
 };
 
 pub enum Action {
@@ -151,6 +151,10 @@ pub enum StagedAction {
     KillNvidia,
     /// Kill all things using the AMD device
     KillAmd,
+    /// Enable nvidia-persistenced service
+    EnableNvidiaPersistenced,
+    /// Disable nvidia-persistenced service
+    DisableNvidiaPersistenced,
     /// Enable nvidia-powerd service
     EnableNvidiaPowerd,
     /// Disable nvidia-powerd service
@@ -204,6 +208,18 @@ impl StagedAction {
             Self::KillAmd
         };
 
+        let disable_nvidia_persistenced = if vendor == GfxVendor::Nvidia {
+            Self::DisableNvidiaPersistenced
+        } else {
+            Self::NotNvidia
+        };
+
+        let enable_nvidia_persistenced = if vendor == GfxVendor::Nvidia {
+            Self::EnableNvidiaPersistenced
+        } else {
+            Self::NotNvidia
+        };
+
         let disable_nvidia_powerd = if vendor == GfxVendor::Nvidia {
             Self::DisableNvidiaPowerd
         } else {
@@ -235,9 +251,11 @@ impl StagedAction {
                 hotplug_add_type,
                 Self::RescanPci,
                 Self::LoadGpuDrivers,
+                enable_nvidia_persistenced,
                 enable_nvidia_powerd,
             ],
             GfxMode::Integrated | GfxMode::NvidiaNoModeset => vec![
+                disable_nvidia_persistenced,
                 disable_nvidia_powerd,
                 kill_gpu_use,
                 Self::UnloadGpuDrivers,
@@ -247,6 +265,7 @@ impl StagedAction {
                 hotplug_rm_type,
             ],
             GfxMode::Vfio => vec![
+                disable_nvidia_persistenced,
                 disable_nvidia_powerd,
                 kill_gpu_use,
                 Self::UnloadGpuDrivers,
@@ -258,6 +277,7 @@ impl StagedAction {
                 Self::WriteModprobeConf,
                 Self::CheckVulkanIcd,
                 Self::LoadGpuDrivers,
+                enable_nvidia_persistenced,
                 enable_nvidia_powerd,
             ],
             GfxMode::AsusMuxDgpu => vec![
@@ -265,6 +285,7 @@ impl StagedAction {
                 Self::WriteModprobeConf,
                 Self::CheckVulkanIcd,
                 Self::LoadGpuDrivers,
+                enable_nvidia_persistenced,
                 enable_nvidia_powerd,
             ],
             GfxMode::None => vec![],
@@ -290,6 +311,9 @@ impl StagedAction {
         };
 
         let mut kill_gpu_use = Self::NotNvidia;
+        // nvidia persistenced toggle if vendor is nvidia
+        let disable_nvidia_persistenced = Self::DisableNvidiaPersistenced;
+        let enable_nvidia_persistenced = Self::EnableNvidiaPersistenced;
         // the nvida powerd toggle function only runs if the vendor is nvidia
         let disable_nvidia_powerd = Self::DisableNvidiaPowerd;
         let enable_nvidia_powerd = Self::EnableNvidiaPowerd;
@@ -320,6 +344,7 @@ impl StagedAction {
                 GfxMode::Integrated => Action::StagedActions(vec![
                     wait_logout,
                     stop_display,
+                    disable_nvidia_persistenced,
                     disable_nvidia_powerd,
                     kill_gpu_use,
                     Self::UnloadGpuDrivers,
@@ -334,6 +359,7 @@ impl StagedAction {
                 GfxMode::AsusEgpu => Action::StagedActions(vec![
                     wait_logout,
                     stop_display,
+                    disable_nvidia_persistenced,
                     disable_nvidia_powerd,
                     kill_gpu_use,
                     Self::UnloadGpuDrivers,
@@ -343,12 +369,14 @@ impl StagedAction {
                     Self::AsusEgpuEnable,
                     Self::RescanPci,
                     Self::LoadGpuDrivers,
+                    enable_nvidia_persistenced,
                     enable_nvidia_powerd,
                     start_display,
                 ]),
                 GfxMode::AsusMuxDgpu => Action::StagedActions(vec![
                     // Self::WriteModprobeConf,
                     Self::CheckVulkanIcd, // check this in anycase
+                    enable_nvidia_persistenced,
                     enable_nvidia_powerd,
                     Self::AsusMuxDgpu,
                 ]),
@@ -365,6 +393,7 @@ impl StagedAction {
                     hotplug_add_type,
                     Self::RescanPci,
                     Self::LoadGpuDrivers,
+                    enable_nvidia_persistenced,
                     enable_nvidia_powerd,
                     start_display,
                 ]),
@@ -373,6 +402,7 @@ impl StagedAction {
                     Self::CheckVulkanIcd,
                     Self::RescanPci,
                     Self::LoadGpuDrivers,
+                    enable_nvidia_persistenced,
                     enable_nvidia_powerd,
                 ]),
                 GfxMode::Vfio => Action::StagedActions(vec![
@@ -380,6 +410,7 @@ impl StagedAction {
                     Self::CheckVulkanIcd,
                     hotplug_add_type,
                     Self::RescanPci, // Make the PCI devices available
+                    disable_nvidia_persistenced,
                     disable_nvidia_powerd,
                     kill_gpu_use,
                     Self::UnloadGpuDrivers, // rescan can load the gpu drivers automatically
@@ -394,6 +425,7 @@ impl StagedAction {
                     Self::AsusEgpuEnable,
                     Self::RescanPci,
                     Self::LoadGpuDrivers,
+                    enable_nvidia_persistenced,
                     enable_nvidia_powerd,
                     start_display,
                 ]),
@@ -401,6 +433,7 @@ impl StagedAction {
                     Self::WriteModprobeConf,
                     Self::CheckVulkanIcd,
                     hotplug_add_type, // must always assume the possibility dgpu_disable was set
+                    enable_nvidia_persistenced,
                     enable_nvidia_powerd,
                     Self::AsusMuxDgpu,
                 ]),
@@ -411,6 +444,7 @@ impl StagedAction {
             GfxMode::NvidiaNoModeset => match to {
                 GfxMode::Hybrid => Action::UserAction(UserActionRequired::Nothing),
                 GfxMode::Integrated => Action::StagedActions(vec![
+                    disable_nvidia_persistenced,
                     disable_nvidia_powerd,
                     kill_gpu_use,
                     Self::UnloadGpuDrivers,
@@ -419,6 +453,7 @@ impl StagedAction {
                     Self::CheckVulkanIcd,
                 ]),
                 GfxMode::Vfio => Action::StagedActions(vec![
+                    disable_nvidia_persistenced,
                     disable_nvidia_powerd,
                     kill_gpu_use,
                     Self::UnloadGpuDrivers,
@@ -429,6 +464,7 @@ impl StagedAction {
                 GfxMode::AsusEgpu => Action::UserAction(UserActionRequired::Nothing),
                 GfxMode::AsusMuxDgpu => Action::StagedActions(vec![
                     // Self::WriteModprobeConf,
+                    enable_nvidia_persistenced,
                     enable_nvidia_powerd,
                     Self::AsusMuxDgpu,
                 ]),
@@ -460,11 +496,13 @@ impl StagedAction {
                     Self::AsusEgpuEnable,
                     Self::RescanPci,
                     Self::LoadGpuDrivers,
+                    enable_nvidia_persistenced,
                     enable_nvidia_powerd,
                     start_display,
                 ]),
                 GfxMode::AsusMuxDgpu => Action::StagedActions(vec![
                     // Self::WriteModprobeConf,
+                    enable_nvidia_persistenced,
                     enable_nvidia_powerd,
                     Self::AsusMuxDgpu,
                 ]),
@@ -474,6 +512,7 @@ impl StagedAction {
                 GfxMode::Hybrid => Action::StagedActions(vec![
                     wait_logout,
                     stop_display,
+                    disable_nvidia_persistenced,
                     disable_nvidia_powerd,
                     kill_gpu_use,
                     Self::UnloadGpuDrivers,
@@ -484,12 +523,14 @@ impl StagedAction {
                     Self::AsusDgpuEnable, // ensure the dgpu is enabled
                     Self::RescanPci,
                     Self::LoadGpuDrivers,
+                    enable_nvidia_persistenced,
                     enable_nvidia_powerd,
                     start_display,
                 ]),
                 GfxMode::Integrated => Action::StagedActions(vec![
                     wait_logout,
                     stop_display,
+                    disable_nvidia_persistenced,
                     disable_nvidia_powerd,
                     kill_gpu_use,
                     Self::UnloadGpuDrivers,
@@ -548,6 +589,8 @@ impl StagedAction {
                 // TODO: do this
                 Ok(())
             }
+            StagedAction::EnableNvidiaPersistenced => toggle_nvidia_persistenced(true, device.vendor()),
+            StagedAction::DisableNvidiaPersistenced => toggle_nvidia_persistenced(false, device.vendor()),
             StagedAction::EnableNvidiaPowerd => toggle_nvidia_powerd(true, device.vendor()),
             StagedAction::DisableNvidiaPowerd => toggle_nvidia_powerd(false, device.vendor()),
             StagedAction::RescanPci => rescan_pci(device),
