@@ -134,3 +134,5 @@ Optional arguments:
 **vfio note:** The vfio modules *must not* be compiled into the kernel, they need
 to be separate modules. If you don't plan to use vfio mode then you can ignore this
 otherwise you may need a custom built kernel.
+
+**Brightness broken on AMD + NVIDIA configurations:** If backlight control breaks after changing between Integrated and Hybrid modes, please add "acpi_backlight=native" to your kernel boot parameters. 

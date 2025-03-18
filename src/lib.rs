@@ -54,7 +54,9 @@ pub const KERNEL_CMDLINE: &str = "/proc/cmdline";
 
 const SLOTS: &str = "/sys/bus/pci/slots";
 
-const NVIDIA_DRIVERS: [&str; 4] = ["nvidia_drm", "nvidia_modeset", "nvidia_uvm", "nvidia"];
+const NOUVEAU_DRIVERS: [&str; 1] = ["nouveau"];
+
+const NVIDIA_DRIVERS: [&str; 5] = ["nvidia_drm", "nvidia_modeset", "nvidia_uvm", "nvidia", "nvidia_wmi_ec_backlight"];
 
 const VFIO_DRIVERS: [&str; 6] = [
     "vfio_pci",
@@ -88,6 +90,11 @@ blacklist nvidia_drm
 blacklist nvidia_uvm
 blacklist nvidia_modeset
 blacklist nvidia
+blacklist nvidia-wmi-ec-backlight
+"#;
+
+static MODPROBE_NVIDIA_EC_BKLT: &[u8] = br#"
+options nvidia-wmi-ec-backlight force=1
 "#;
 
 static MODPROBE_VFIO: &[u8] = br#"options vfio-pci ids="#;
