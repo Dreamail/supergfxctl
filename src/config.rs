@@ -10,7 +10,7 @@ use crate::error::GfxError;
 use crate::pci_device::{DiscreetGpu, GfxMode, HotplugType};
 use crate::{
     CONFIG_NVIDIA_VKICD, MODPROBE_INTEGRATED, MODPROBE_NVIDIA_BASE, MODPROBE_NVIDIA_DRM_MODESET_ON,
-    MODPROBE_PATH, MODPROBE_VFIO,
+    MODPROBE_PATH, MODPROBE_VFIO, MODPROBE_NVIDIA_EC_BKLT
 };
 
 /// Cleaned config for passing over dbus only
@@ -204,12 +204,14 @@ pub(crate) fn create_modprobe_conf(mode: GfxMode, device: &DiscreetGpu) -> Resul
         GfxMode::Hybrid | GfxMode::AsusEgpu | GfxMode::NvidiaNoModeset => {
             let mut base = MODPROBE_NVIDIA_BASE.to_vec();
             base.append(&mut MODPROBE_NVIDIA_DRM_MODESET_ON.to_vec());
+            base.append(&mut MODPROBE_NVIDIA_EC_BKLT.to_vec());
             base
         }
         GfxMode::Vfio => create_vfio_conf(device),
         GfxMode::Integrated => {
             let mut base = MODPROBE_INTEGRATED.to_vec();
             base.append(&mut MODPROBE_NVIDIA_DRM_MODESET_ON.to_vec());
+            base.append(&mut MODPROBE_NVIDIA_EC_BKLT.to_vec()); // only 
             base
         }
         GfxMode::None | GfxMode::AsusMuxDgpu => vec![],
