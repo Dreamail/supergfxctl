@@ -205,6 +205,25 @@ pub fn toggle_nvidia_powerd(run: bool, vendor: GfxVendor) -> Result<(), GfxError
     Ok(())
 }
 
+pub fn toggle_nvidia_persistenced(run: bool, vendor: GfxVendor) -> Result<(), GfxError> {
+    if vendor == GfxVendor::Nvidia {
+        let mut cmd = Command::new("systemctl");
+        if run {
+            cmd.arg("start");
+        } else {
+            cmd.arg("stop");
+        }
+        cmd.arg("nvidia-persistenced.service");
+
+        let status = cmd.status()?;
+        if !status.success() {
+            warn!("{run} nvidia-persistenced.service failed: {:?}", status.code());
+        }
+        debug!("Did {:?}", cmd.get_args());
+    }
+    Ok(())
+}
+
 pub fn kill_nvidia_lsof() -> Result<(), GfxError> {
     if !PathBuf::from("/dev/nvidia0").exists() {
         return Ok(());
