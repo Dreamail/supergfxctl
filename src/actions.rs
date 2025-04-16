@@ -633,32 +633,23 @@ async fn graphical_user_sessions_exist(
             .await
             .map_err(|e| warn!("graphical_user_sessions_exist: builder: {e:?}"))
         {
-            if let Ok(class) = session_proxy.class().await.map_err(|e| {
-                warn!("graphical_user_sessions_exist: class: {e:?}");
+            if let Ok(type_) = session_proxy.type_().await.map_err(|e| {
+                warn!("graphical_user_sessions_exist: type_: {e:?}");
                 e
             }) {
-                if class == SessionClass::User {
-                    if let Ok(type_) = session_proxy.type_().await.map_err(|e| {
-                        warn!("graphical_user_sessions_exist: type_: {e:?}");
-                        e
-                    }) {
-                        match type_ {
-                            SessionType::X11 | SessionType::Wayland | SessionType::MIR => {
-                                if let Ok(state) = session_proxy.state().await.map_err(|e| {
-                                    warn!("graphical_user_sessions_exist: state: {e:?}");
-                                    e
-                                }) {
-                                    match state {
-                                        SessionState::Online | SessionState::Active => {
-                                            return Ok(true)
-                                        }
-                                        SessionState::Closing => {}
-                                    }
-                                }
+                match type_ {
+                    SessionType::X11 | SessionType::Wayland | SessionType::MIR => {
+                        if let Ok(state) = session_proxy.state().await.map_err(|e| {
+                            warn!("graphical_user_sessions_exist: state: {e:?}");
+                            e
+                        }) {
+                            match state {
+                                SessionState::Online | SessionState::Active => return Ok(true),
+                                SessionState::Closing => {}
                             }
-                            _ => {}
                         }
                     }
+                    _ => {}
                 }
             }
         }
